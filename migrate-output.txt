@@ -1,0 +1,25 @@
+﻿≡ƒöî Connecting to MongoDB...
+Γ£à Connected to MongoDB
+
+≡ƒôª Found 3 question sets to migrate
+
+Processing: LISTENING - Cambridge IELTS Test 1 - Listening
+  ΓÅ¡∩╕Å  Already exists, skipping...
+Processing: READING - Cambridge IELTS Reading Test 1
+  Γ£à Migrated to ReadingTests
+Processing: WRITING - Cambridge IELTS Test 1 - Writing
+  Γ£à Migrated to WritingTests
+
+==================================================
+≡ƒôè Migration Summary:
+  Listening Tests: 0
+  Reading Tests: 1
+  Writing Tests: 1
+==================================================
+
+Γ£à New Collection Counts:
+  ListeningTests: 1
+  ReadingTests: 1
+  WritingTests: 1
+
+≡ƒöî Disconnected from MongoDB

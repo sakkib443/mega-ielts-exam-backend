@@ -1,0 +1,20 @@
+﻿≡ƒöî Connecting to MongoDB...
+Γ£à Connected to MongoDB
+
+≡ƒôè LISTENING QUESTION SETS:
+Total count: 1
+
+1. Cambridge IELTS Test 1 - Listening
+   Set ID: LISTENING_SET_002
+   Total Questions: 40
+   Sections: 4
+   Active: true
+
+
+≡ƒôè ALL QUESTION SETS:
+Total count: 3
+1. [LISTENING] Cambridge IELTS Test 1 - Listening - 40 questions
+2. [READING] Cambridge IELTS Reading Test 1 - 40 questions
+3. [WRITING] Cambridge IELTS Test 1 - Writing - 2 questions
+
+≡ƒöî Disconnected from MongoDB

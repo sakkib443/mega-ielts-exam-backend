@@ -1,0 +1,21 @@
+﻿Collections: [
+  'users',
+  'readingtests',
+  'examsessions',
+  'students',
+  'exams',
+  'listeningtests',
+  'writingsubmissions',
+  'datainfos',
+  'writingtests',
+  'questionsets',
+  'userinterfaces'
+]
+\nOld QuestionSets: 3
+  - LISTENING : Cambridge IELTS Test 1 - Listening
+  - READING : Cambridge IELTS Reading Test 1
+  - WRITING : Cambridge IELTS Test 1 - Writing
+\nNew Collections:
+  ListeningTests: 0
+  ReadingTests: 0
+  WritingTests: 0

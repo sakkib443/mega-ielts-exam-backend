@@ -1,0 +1,648 @@
+import { QuestionSet, generateSetId } from "./questionSet.model";
+import {
+    ICreateQuestionSetInput,
+    IQuestionSetFilters,
+    SetType,
+} from "./questionSet.interface";
+import { Types } from "mongoose";
+
+// Import new separate collections
+import { ListeningTest } from "../listening/listening.model";
+import { ReadingTest } from "../reading/reading.model";
+import { WritingTest } from "../writing/writing.model";
+
+
+const createQuestionSet = async (
+    data: ICreateQuestionSetInput,
+    adminId: string
+) => {
+    // Generate set ID and number
+    const { setId, setNumber } = await generateSetId(data.setType);
+
+    // Calculate total questions
+    let totalQuestions = 0;
+    let totalMarks = 0;
+
+    if (data.sections && data.sections.length > 0) {
+        data.sections.forEach((section) => {
+            totalQuestions += section.questions.length;
+            section.questions.forEach((q) => {
+                totalMarks += q.marks || 1;
+            });
+        });
+    } else if (data.writingTasks && data.writingTasks.length > 0) {
+        totalQuestions = data.writingTasks.length;
+        totalMarks = 18; // Writing is scored differently
+    }
+
+    const questionSet = await QuestionSet.create({
+        ...data,
+        setId,
+        setNumber,
+        totalQuestions,
+        totalMarks,
+        createdBy: new Types.ObjectId(adminId),
+    });
+
+    return questionSet;
+};
+
+// Get all question sets with filters - NOW USES NEW COLLECTIONS
+const getAllQuestionSets = async (
+    filters: IQuestionSetFilters,
+    page: number = 1,
+    limit: number = 10
+) => {
+    const skip = (page - 1) * limit;
+
+    // Helper to build query for each collection
+    const buildQuery = (isActive?: boolean, difficulty?: string, searchTerm?: string) => {
+        const q: Record<string, unknown> = {};
+        if (typeof isActive === "boolean") q.isActive = isActive;
+        if (difficulty) q.difficulty = difficulty;
+        if (searchTerm) {
+            q.$or = [
+                { title: { $regex: searchTerm, $options: "i" } },
+                { testId: { $regex: searchTerm, $options: "i" } },
+            ];
+        }
+        return q;
+    };
+
+    // If filtering by specific type, only query that collection
+    if (filters.setType) {
+        const query = buildQuery(filters.isActive, filters.difficulty, filters.searchTerm);
+
+        let sets: any[] = [];
+        let total = 0;
+
+        if (filters.setType === "LISTENING") {
+            [sets, total] = await Promise.all([
+                ListeningTest.find(query)
+                    .select("-sections.questions.correctAnswer")
+                    .sort({ testNumber: 1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                ListeningTest.countDocuments(query),
+            ]);
+            // Map to old format
+            sets = sets.map(s => ({
+                ...s,
+                setId: s.testId,
+                setNumber: s.testNumber,
+                setType: "LISTENING",
+            }));
+        } else if (filters.setType === "READING") {
+            [sets, total] = await Promise.all([
+                ReadingTest.find(query)
+                    .select("-passages.questionGroups.questions.correctAnswer")
+                    .sort({ testNumber: 1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                ReadingTest.countDocuments(query),
+            ]);
+            sets = sets.map(s => ({
+                ...s,
+                setId: s.testId,
+                setNumber: s.testNumber,
+                setType: "READING",
+            }));
+        } else if (filters.setType === "WRITING") {
+            [sets, total] = await Promise.all([
+                WritingTest.find(query)
+                    .select("-tasks.sampleAnswer")
+                    .sort({ testNumber: 1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                WritingTest.countDocuments(query),
+            ]);
+            sets = sets.map(s => ({
+                ...s,
+                setId: s.testId,
+                setNumber: s.testNumber,
+                setType: "WRITING",
+            }));
+        }
+
+        return {
+            sets,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+    }
+
+    // If no type filter, get counts from all new collections
+    const query = buildQuery(filters.isActive, filters.difficulty, filters.searchTerm);
+
+    // Get all from each collection
+    const [listeningTests, readingTests, writingTests] = await Promise.all([
+        ListeningTest.find(query)
+            .select("-sections.questions.correctAnswer")
+            .sort({ testNumber: 1 })
+            .lean(),
+        ReadingTest.find(query)
+            .select("-passages.questionGroups.questions.correctAnswer")
+            .sort({ testNumber: 1 })
+            .lean(),
+        WritingTest.find(query)
+            .select("-tasks.sampleAnswer")
+            .sort({ testNumber: 1 })
+            .lean(),
+    ]);
+
+    // Map to old format and combine
+    const allSets = [
+        ...listeningTests.map(s => ({
+            ...s,
+            setId: s.testId,
+            setNumber: s.testNumber,
+            setType: "LISTENING" as const,
+        })),
+        ...readingTests.map(s => ({
+            ...s,
+            setId: s.testId,
+            setNumber: s.testNumber,
+            setType: "READING" as const,
+        })),
+        ...writingTests.map(s => ({
+            ...s,
+            setId: s.testId,
+            setNumber: s.testNumber,
+            setType: "WRITING" as const,
+        })),
+    ];
+
+    // Sort by setType then setNumber
+    allSets.sort((a, b) => {
+        const typeOrder = { LISTENING: 1, READING: 2, WRITING: 3 };
+        if (typeOrder[a.setType] !== typeOrder[b.setType]) {
+            return typeOrder[a.setType] - typeOrder[b.setType];
+        }
+        return a.setNumber - b.setNumber;
+    });
+
+    const total = allSets.length;
+    const paginatedSets = allSets.slice(skip, skip + limit);
+
+    return {
+        sets: paginatedSets,
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+        },
+    };
+};
+
+// Get question set by ID (with answers for admin) - NOW USES NEW COLLECTIONS
+const getQuestionSetById = async (id: string, includeAnswers: boolean = false) => {
+    // Try to find in new collections first by MongoDB _id
+    let set: any = null;
+    let setType: string = "";
+
+    // Try Listening
+    set = includeAnswers
+        ? await ListeningTest.findById(id).lean()
+        : await ListeningTest.findById(id).select("-sections.questions.correctAnswer").lean();
+    if (set) {
+        setType = "LISTENING";
+    }
+
+    // Try Reading if not found
+    if (!set) {
+        set = includeAnswers
+            ? await ReadingTest.findById(id).lean()
+            : await ReadingTest.findById(id).select("-passages.questionGroups.questions.correctAnswer").lean();
+        if (set) {
+            setType = "READING";
+        }
+    }
+
+    // Try Writing if not found
+    if (!set) {
+        set = includeAnswers
+            ? await WritingTest.findById(id).lean()
+            : await WritingTest.findById(id).select("-tasks.sampleAnswer").lean();
+        if (set) {
+            setType = "WRITING";
+        }
+    }
+
+    // Fallback to old QuestionSet collection
+    if (!set) {
+        const selectFields = includeAnswers
+            ? undefined
+            : "-sections.questions.correctAnswer -writingTasks.sampleAnswer";
+        set = selectFields
+            ? await QuestionSet.findById(id).select(selectFields).lean()
+            : await QuestionSet.findById(id).lean();
+    }
+
+    if (!set) {
+        throw new Error("Question set not found");
+    }
+
+    // Map to old format if from new collection
+    if (setType) {
+        return {
+            ...set,
+            setId: set.testId,
+            setNumber: set.testNumber,
+            setType,
+        };
+    }
+
+    return set;
+};
+
+// Get question set by set number and type
+const getQuestionSetByNumber = async (
+    setType: SetType,
+    setNumber: number,
+    includeAnswers: boolean = false
+) => {
+    const selectFields = includeAnswers
+        ? undefined
+        : "-sections.questions.correctAnswer -writingTasks.sampleAnswer";
+
+    const set = selectFields
+        ? await QuestionSet.findOne({ setType, setNumber, isActive: true }).select(selectFields).lean()
+        : await QuestionSet.findOne({ setType, setNumber, isActive: true }).lean();
+
+    if (!set) {
+        throw new Error(`${setType} Set #${setNumber} not found`);
+    }
+
+    // Increment usage count
+    if (set._id) {
+        await QuestionSet.findByIdAndUpdate(set._id, { $inc: { usageCount: 1 } });
+    }
+
+    return set;
+};
+
+// Get question set for exam (without answers) - NOW USES NEW COLLECTIONS
+const getQuestionSetForExam = async (setType: SetType, setNumber: number) => {
+    let data: any = null;
+
+    if (setType === "LISTENING") {
+        const test = await ListeningTest.findOne({ testNumber: setNumber, isActive: true })
+            .select("-sections.questions.correctAnswer -sections.questions.acceptableAnswers -sections.questions.explanation")
+            .lean();
+
+        if (test) {
+            // Convert to old format for backward compatibility
+            data = {
+                _id: test._id,
+                setId: test.testId,
+                setNumber: test.testNumber,
+                setType: "LISTENING",
+                title: test.title,
+                description: test.description,
+                mainAudioUrl: test.mainAudioUrl,
+                audioDuration: test.audioDuration,
+                sections: test.sections,
+                totalQuestions: test.totalQuestions,
+                totalMarks: test.totalMarks,
+                duration: test.duration,
+                difficulty: test.difficulty,
+                isActive: test.isActive
+            };
+            // Increment usage
+            await ListeningTest.findByIdAndUpdate(test._id, { $inc: { usageCount: 1 } });
+        }
+    } else if (setType === "READING") {
+        const test = await ReadingTest.findOne({ testNumber: setNumber, isActive: true })
+            .select("-sections.questions.correctAnswer -sections.questions.acceptableAnswers -sections.questions.explanation")
+            .lean();
+
+        if (test) {
+            data = {
+                _id: test._id,
+                setId: test.testId,
+                setNumber: test.testNumber,
+                setType: "READING",
+                title: test.title,
+                description: test.description,
+                sections: test.sections,
+                totalQuestions: test.totalQuestions,
+                totalMarks: test.totalMarks,
+                duration: test.duration,
+                difficulty: test.difficulty,
+                isActive: test.isActive
+            };
+            await ReadingTest.findByIdAndUpdate(test._id, { $inc: { usageCount: 1 } });
+        }
+    } else if (setType === "WRITING") {
+        const test = await WritingTest.findOne({ testNumber: setNumber, isActive: true })
+            .select("-tasks.sampleAnswer -tasks.keyPoints -tasks.bandDescriptors")
+            .lean();
+
+        if (test) {
+            data = {
+                _id: test._id,
+                setId: test.testId,
+                setNumber: test.testNumber,
+                setType: "WRITING",
+                title: test.title,
+                description: test.description,
+                writingTasks: test.tasks?.map((task: any) => ({
+                    taskNumber: task.taskNumber,
+                    prompt: task.prompt,
+                    instructions: task.instructions,
+                    minWords: task.minWords,
+                    recommendedTime: task.recommendedTime,
+                    imageUrl: task.images?.[0]?.url,
+                    letterContext: task.letterContext
+                })),
+                totalQuestions: 2,
+                totalMarks: 18,
+                duration: test.duration,
+                difficulty: test.difficulty,
+                isActive: test.isActive
+            };
+            await WritingTest.findByIdAndUpdate(test._id, { $inc: { usageCount: 1 } });
+        }
+    }
+
+    if (!data) {
+        // Fallback to old collection
+        const set = await QuestionSet.findOne({ setType, setNumber, isActive: true })
+            .select("-sections.questions.correctAnswer -writingTasks.sampleAnswer")
+            .lean();
+
+        if (!set) {
+            throw new Error(`${setType} Set #${setNumber} not found or inactive`);
+        }
+        return set;
+    }
+
+    return data;
+};
+
+// Get answers for grading - NOW USES NEW COLLECTIONS
+const getAnswersForGrading = async (setType: SetType, setNumber: number) => {
+    const answerMap: Record<number, string | string[]> = {};
+
+    if (setType === "LISTENING") {
+        const test = await ListeningTest.findOne({ testNumber: setNumber })
+            .select("sections.questions.questionNumber sections.questions.correctAnswer sections.questions.acceptableAnswers")
+            .lean();
+
+        if (test?.sections) {
+            test.sections.forEach((section: any) => {
+                section.questions?.forEach((q: any) => {
+                    answerMap[q.questionNumber] = q.correctAnswer;
+                });
+            });
+            return answerMap;
+        }
+    } else if (setType === "READING") {
+        const test = await ReadingTest.findOne({ testNumber: setNumber })
+            .select("sections.questions.questionNumber sections.questions.correctAnswer sections.questions.acceptableAnswers")
+            .lean();
+
+        if (test?.sections) {
+            test.sections.forEach((section: any) => {
+                section.questions?.forEach((q: any) => {
+                    answerMap[q.questionNumber] = q.correctAnswer;
+                });
+            });
+            return answerMap;
+        }
+    }
+
+    // Fallback to old collection
+    const set = await QuestionSet.findOne({ setType, setNumber })
+        .select("sections.questions.questionNumber sections.questions.correctAnswer")
+        .lean();
+
+    if (!set) {
+        throw new Error("Question set not found");
+    }
+
+    if (set.sections) {
+        set.sections.forEach((section) => {
+            section.questions.forEach((q) => {
+                answerMap[q.questionNumber] = q.correctAnswer;
+            });
+        });
+    }
+
+    return answerMap;
+};
+
+
+// Update question set
+const updateQuestionSet = async (
+    id: string,
+    updateData: Partial<ICreateQuestionSetInput>
+) => {
+    const set = await QuestionSet.findById(id);
+    if (!set) {
+        throw new Error("Question set not found");
+    }
+
+    // Recalculate totals if sections changed
+    if (updateData.sections) {
+        let totalQuestions = 0;
+        let totalMarks = 0;
+        updateData.sections.forEach((section) => {
+            totalQuestions += section.questions.length;
+            section.questions.forEach((q) => {
+                totalMarks += q.marks || 1;
+            });
+        });
+        (updateData as any).totalQuestions = totalQuestions;
+        (updateData as any).totalMarks = totalMarks;
+    }
+
+    const updatedSet = await QuestionSet.findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { new: true, runValidators: true }
+    );
+
+    return updatedSet;
+};
+
+// Delete question set - NOW USES NEW COLLECTIONS
+const deleteQuestionSet = async (id: string) => {
+    // Try to find and deactivate in new collections first
+    let result = await ListeningTest.findByIdAndUpdate(id, { isActive: false });
+    if (result) {
+        return { message: "Listening test deactivated successfully" };
+    }
+
+    result = await ReadingTest.findByIdAndUpdate(id, { isActive: false });
+    if (result) {
+        return { message: "Reading test deactivated successfully" };
+    }
+
+    result = await WritingTest.findByIdAndUpdate(id, { isActive: false });
+    if (result) {
+        return { message: "Writing test deactivated successfully" };
+    }
+
+    // Fallback to old collection
+    const set = await QuestionSet.findById(id);
+    if (!set) {
+        throw new Error("Question set not found");
+    }
+
+    await QuestionSet.findByIdAndUpdate(id, { isActive: false });
+    return { message: "Question set deactivated successfully" };
+};
+
+// Toggle active status - NOW USES NEW COLLECTIONS
+const toggleActive = async (id: string) => {
+    // Try to find in new collections first
+    let set: any = await ListeningTest.findById(id);
+    if (set) {
+        set.isActive = !set.isActive;
+        await set.save();
+        return {
+            message: `Listening test ${set.isActive ? "activated" : "deactivated"} successfully`,
+            isActive: set.isActive,
+        };
+    }
+
+    set = await ReadingTest.findById(id);
+    if (set) {
+        set.isActive = !set.isActive;
+        await set.save();
+        return {
+            message: `Reading test ${set.isActive ? "activated" : "deactivated"} successfully`,
+            isActive: set.isActive,
+        };
+    }
+
+    set = await WritingTest.findById(id);
+    if (set) {
+        set.isActive = !set.isActive;
+        await set.save();
+        return {
+            message: `Writing test ${set.isActive ? "activated" : "deactivated"} successfully`,
+            isActive: set.isActive,
+        };
+    }
+
+    // Fallback to old collection
+    set = await QuestionSet.findById(id);
+    if (!set) {
+        throw new Error("Question set not found");
+    }
+
+    set.isActive = !set.isActive;
+    await set.save();
+
+    return {
+        message: `Question set ${set.isActive ? "activated" : "deactivated"} successfully`,
+        isActive: set.isActive,
+    };
+};
+
+// Get set summary (for dropdown selection) - NOW USES NEW COLLECTIONS
+const getSetSummary = async (setType: SetType) => {
+    let sets: any[] = [];
+
+    if (setType === "LISTENING") {
+        const tests = await ListeningTest.find({ isActive: true })
+            .select("testId testNumber title difficulty usageCount")
+            .sort({ testNumber: 1 })
+            .lean();
+        sets = tests.map(t => ({
+            setId: t.testId,
+            setNumber: t.testNumber,
+            title: t.title,
+            difficulty: t.difficulty,
+            usageCount: t.usageCount
+        }));
+    } else if (setType === "READING") {
+        const tests = await ReadingTest.find({ isActive: true })
+            .select("testId testNumber title difficulty usageCount")
+            .sort({ testNumber: 1 })
+            .lean();
+        sets = tests.map(t => ({
+            setId: t.testId,
+            setNumber: t.testNumber,
+            title: t.title,
+            difficulty: t.difficulty,
+            usageCount: t.usageCount
+        }));
+    } else if (setType === "WRITING") {
+        const tests = await WritingTest.find({ isActive: true })
+            .select("testId testNumber title difficulty usageCount")
+            .sort({ testNumber: 1 })
+            .lean();
+        sets = tests.map(t => ({
+            setId: t.testId,
+            setNumber: t.testNumber,
+            title: t.title,
+            difficulty: t.difficulty,
+            usageCount: t.usageCount
+        }));
+    }
+
+    // Fallback to old collection
+    if (sets.length === 0) {
+        sets = await QuestionSet.find({ setType, isActive: true })
+            .select("setId setNumber title difficulty usageCount")
+            .sort({ setNumber: 1 })
+            .lean();
+    }
+
+    return sets;
+};
+
+// Get statistics - NOW USES NEW COLLECTIONS
+const getStatistics = async () => {
+    const [listeningCount, readingCount, writingCount, listeningUsage, readingUsage, writingUsage] = await Promise.all([
+        ListeningTest.countDocuments({ isActive: true }),
+        ReadingTest.countDocuments({ isActive: true }),
+        WritingTest.countDocuments({ isActive: true }),
+        ListeningTest.aggregate([
+            { $group: { _id: null, total: { $sum: "$usageCount" } } },
+        ]),
+        ReadingTest.aggregate([
+            { $group: { _id: null, total: { $sum: "$usageCount" } } },
+        ]),
+        WritingTest.aggregate([
+            { $group: { _id: null, total: { $sum: "$usageCount" } } },
+        ]),
+    ]);
+
+    const totalUsage =
+        (listeningUsage[0]?.total || 0) +
+        (readingUsage[0]?.total || 0) +
+        (writingUsage[0]?.total || 0);
+
+    return {
+        listening: listeningCount,
+        reading: readingCount,
+        writing: writingCount,
+        totalUsage,
+    };
+};
+
+export const QuestionSetService = {
+    createQuestionSet,
+    getAllQuestionSets,
+    getQuestionSetById,
+    getQuestionSetByNumber,
+    getQuestionSetForExam,
+    getAnswersForGrading,
+    updateQuestionSet,
+    deleteQuestionSet,
+    toggleActive,
+    getSetSummary,
+    getStatistics,
+};

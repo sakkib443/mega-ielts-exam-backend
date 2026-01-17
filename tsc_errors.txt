@@ -1,0 +1,23 @@
+﻿src/app/middlewares/validateRequest.ts(2,10): error TS2724: '"zod"' has no exported member named 'AnyZodObject'. Did you mean 'ZodObject'?
+src/app/modules/auth/auth.service.ts(23,19): error TS2769: No overload matches this call.
+  Overload 1 of 5, '(payload: string | object | Buffer, secretOrPrivateKey: null, options?: (SignOptions & { algorithm: "none"; }) | undefined): string', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type 'null'.
+  Overload 2 of 5, '(payload: string | object | Buffer, secretOrPrivateKey: Secret | PrivateKeyInput | JsonWebKeyInput, options?: SignOptions | undefined): string', gave the following error.
+    Type 'string' is not assignable to type 'number | StringValue | undefined'.
+  Overload 3 of 5, '(payload: string | object | Buffer, secretOrPrivateKey: Secret | PrivateKeyInput | JsonWebKeyInput, callback: SignCallback): void', gave the following error.
+    Argument of type '{ expiresIn: string; }' is not assignable to parameter of type 'SignCallback'.
+      Object literal may only specify known properties, and 'expiresIn' does not exist in type 'SignCallback'.
+src/app/modules/auth/auth.service.ts(57,19): error TS2769: No overload matches this call.
+  Overload 1 of 5, '(payload: string | object | Buffer, secretOrPrivateKey: null, options?: (SignOptions & { algorithm: "none"; }) | undefined): string', gave the following error.
+    Argument of type 'string' is not assignable to parameter of type 'null'.
+  Overload 2 of 5, '(payload: string | object | Buffer, secretOrPrivateKey: Secret | PrivateKeyInput | JsonWebKeyInput, options?: SignOptions | undefined): string', gave the following error.
+    Type 'string' is not assignable to type 'number | StringValue | undefined'.
+  Overload 3 of 5, '(payload: string | object | Buffer, secretOrPrivateKey: Secret | PrivateKeyInput | JsonWebKeyInput, callback: SignCallback): void', gave the following error.
+    Argument of type '{ expiresIn: string; }' is not assignable to parameter of type 'SignCallback'.
+      Object literal may only specify known properties, and 'expiresIn' does not exist in type 'SignCallback'.
+src/app/modules/exam/exam.service.ts(48,9): error TS2322: Type 'Query<Document<unknown, {}, Document<unknown, {}, IExam> & IExam> & Document<unknown, {}, IExam> & IExam & Required<{ _id: unknown; }>, Document<...> & ... 1 more ... & { ...; }, {}, Document<...> & IExam, "findOne">' is not assignable to type 'Query<(Document<unknown, {}, IExam> & IExam & { _id: ObjectId; }) | null, Document<unknown, {}, IExam> & IExam & { _id: ObjectId; }, {}, IExam, "findOne">'.
+  The types returned by 'exec()' are incompatible between these types.
+    Type 'Promise<Document<unknown, {}, Document<unknown, {}, IExam> & IExam> & Document<unknown, {}, IExam> & IExam & Required<{ _id: unknown; }>>' is not assignable to type 'Promise<(Document<unknown, {}, IExam> & IExam & { _id: ObjectId; }) | null>'.
+      Type 'Document<unknown, {}, Document<unknown, {}, IExam> & IExam> & Document<unknown, {}, IExam> & IExam & Required<{ _id: unknown; }>' is not assignable to type '(Document<unknown, {}, IExam> & IExam & { _id: ObjectId; }) | null'.
+src/app/modules/student/student.model.ts(263,57): error TS2344: Type 'IStudent' does not satisfy the constraint 'Schema<any, Model<any, any, any, any, any, any>, {}, {}, {}, {}, DefaultSchemaOptions, { [x: string]: any; }, Document<unknown, {}, FlatRecord<{ [x: string]: any; }>> & FlatRecord<...> & Required<...>>'.
+  Type 'IStudent' is missing the following properties from type 'Schema<any, Model<any, any, any, any, any, any>, {}, {}, {}, {}, DefaultSchemaOptions, { [x: string]: any; }, Document<unknown, {}, FlatRecord<{ [x: string]: any; }>> & FlatRecord<...> & Required<...>>': add, alias, childSchemas, clearIndexes, and 42 more.
