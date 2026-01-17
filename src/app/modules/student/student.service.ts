@@ -552,6 +552,7 @@ const saveModuleScore = async (
         band: number;
         task1Words?: number;
         task2Words?: number;
+        answers?: any; // Added answers field
     }
 ) => {
     const student = await Student.findOne({ examId: examId.toUpperCase() });
@@ -560,22 +561,17 @@ const saveModuleScore = async (
         throw new Error("Student not found");
     }
 
-    // Initialize scores object if not exists
-    if (!student.scores) {
-        student.scores = {} as any;
-    }
-
-    // Initialize completedModules array if not exists
-    if (!student.completedModules) {
-        student.completedModules = [];
-    }
+    // Initialize objects if they don't exist
+    if (!student.scores) student.scores = {} as any;
+    if (!student.completedModules) student.completedModules = [];
+    if (!student.examAnswers) student.examAnswers = {};
 
     // Check if module already completed
     if (student.completedModules.includes(module)) {
         throw new Error(`${module} exam has already been completed`);
     }
 
-    // Save module-specific score
+    // Save module-specific score and answers
     if (module === "listening") {
         student.scores!.listening = {
             raw: scoreData.score || 0,
@@ -583,6 +579,7 @@ const saveModuleScore = async (
             correctAnswers: scoreData.score || 0,
             totalQuestions: scoreData.total || 40,
         };
+        if (scoreData.answers) student.examAnswers.listening = scoreData.answers;
     } else if (module === "reading") {
         student.scores!.reading = {
             raw: scoreData.score || 0,
@@ -590,33 +587,40 @@ const saveModuleScore = async (
             correctAnswers: scoreData.score || 0,
             totalQuestions: scoreData.total || 40,
         };
+        if (scoreData.answers) student.examAnswers.reading = scoreData.answers;
     } else if (module === "writing") {
         student.scores!.writing = {
             task1Band: scoreData.band,
             task2Band: scoreData.band,
             overallBand: scoreData.band,
         };
+        if (scoreData.answers) {
+            student.examAnswers.writing = {
+                task1: scoreData.answers.task1 || "",
+                task2: scoreData.answers.task2 || "",
+            };
+        }
     }
 
     // Add to completed modules
     student.completedModules.push(module);
 
-    // Calculate overall band if all modules completed
-    const hasListening = student.scores?.listening?.band;
-    const hasReading = student.scores?.reading?.band;
-    const hasWriting = student.scores?.writing?.overallBand;
+    // Calculate overall band if enough modules done
+    const listeningBand = student.scores?.listening?.band || 0;
+    const readingBand = student.scores?.reading?.band || 0;
+    const writingBand = student.scores?.writing?.overallBand || 0;
 
-    if (hasListening && hasReading && hasWriting) {
-        const listeningBand = student.scores!.listening!.band;
-        const readingBand = student.scores!.reading!.band;
-        const writingBand = student.scores!.writing!.overallBand;
-        student.scores!.overall = Math.round(((listeningBand + readingBand + writingBand) / 3) * 2) / 2;
+    if (listeningBand > 0 || readingBand > 0 || writingBand > 0) {
+        const bands = [listeningBand, readingBand, writingBand].filter(b => b > 0);
+        const sum = bands.reduce((a, b) => a + b, 0);
+        student.scores.overall = Math.round((sum / bands.length) * 2) / 2;
+    }
 
-        // Mark exam as completed when all modules done
+    // Update exam status
+    if (student.completedModules.length >= 3) {
         student.examStatus = "completed";
         student.examCompletedAt = new Date();
     } else {
-        // Keep in-progress status
         student.examStatus = "in-progress";
     }
 
@@ -785,6 +789,68 @@ const getStatistics = async () => {
     };
 };
 
+// Update score for a module (admin)
+const updateScore = async (studentId: string, module: string, score: number) => {
+    const student = await Student.findById(studentId);
+    if (!student) {
+        throw new Error("Student not found");
+    }
+
+    const moduleName = module.toLowerCase();
+
+    if (!student.scores) {
+        student.scores = {
+            listening: { raw: 0, band: 0, correctAnswers: 0, totalQuestions: 40 },
+            reading: { raw: 0, band: 0, correctAnswers: 0, totalQuestions: 40 },
+            writing: { task1Band: 0, task2Band: 0, overallBand: 0 },
+            overall: 0,
+        };
+    }
+
+    if (moduleName === 'listening') {
+        student.scores.listening.band = score;
+    } else if (moduleName === 'reading') {
+        student.scores.reading.band = score;
+    } else if (moduleName === 'writing') {
+        student.scores.writing.overallBand = score;
+    }
+
+    // Recalculate overall
+    const listening = student.scores.listening?.band || 0;
+    const reading = student.scores.reading?.band || 0;
+    const writing = student.scores.writing?.overallBand || 0;
+
+    const sum = listening + reading + writing;
+    const count = [listening, reading, writing].filter(s => s > 0).length || 1;
+    student.scores.overall = Math.round((sum / count) * 2) / 2; // Round to nearest 0.5
+
+    await student.save();
+
+    return student;
+};
+
+// Get answer sheet for a module (admin)
+const getAnswerSheet = async (studentId: string, module: string) => {
+    const student = await Student.findById(studentId);
+    if (!student) {
+        throw new Error("Student not found");
+    }
+
+    const moduleName = module.toLowerCase();
+    const answers = student.examAnswers?.[moduleName as keyof typeof student.examAnswers] || [];
+
+    return {
+        student: {
+            _id: student._id,
+            examId: student.examId,
+            nameEnglish: student.nameEnglish,
+        },
+        module: moduleName,
+        answers,
+        scores: student.scores?.[moduleName as keyof typeof student.scores],
+    };
+};
+
 export const StudentService = {
     createStudent,
     getAllStudents,
@@ -801,4 +867,6 @@ export const StudentService = {
     getExamResults,
     getAllResults,
     getStatistics,
+    updateScore,
+    getAnswerSheet,
 };

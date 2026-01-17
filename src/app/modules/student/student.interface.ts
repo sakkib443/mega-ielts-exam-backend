@@ -91,7 +91,27 @@ export interface IStudent {
     scores?: IExamScores;
 
     // Track completed modules
-    completedModules?: ("listening" | "reading" | "writing")[];
+    completedModules?: ("listening" | "reading" | "writing" | "LISTENING" | "READING" | "WRITING")[];
+
+    // Store student's exam answers for each module
+    examAnswers?: {
+        listening?: {
+            questionNumber: number;
+            studentAnswer: string;
+            correctAnswer: string;
+            isCorrect: boolean;
+        }[];
+        reading?: {
+            questionNumber: number;
+            studentAnswer: string;
+            correctAnswer: string;
+            isCorrect: boolean;
+        }[];
+        writing?: {
+            task1?: string;
+            task2?: string;
+        };
+    };
 
     // Security & violations
     violations: IViolation[];

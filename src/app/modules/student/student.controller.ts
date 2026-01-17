@@ -345,6 +345,54 @@ const getStatistics = async (req: Request, res: Response) => {
     }
 };
 
+// Update score for a module (Admin)
+const updateScore = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { module, score } = req.body;
+
+        if (!module || score === undefined) {
+            return res.status(400).json({
+                success: false,
+                message: "module and score are required",
+            });
+        }
+
+        const result = await StudentService.updateScore(id, module, score);
+
+        res.status(200).json({
+            success: true,
+            message: "Score updated successfully",
+            data: result,
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to update score",
+        });
+    }
+};
+
+// Get answer sheet for a module (Admin)
+const getAnswerSheet = async (req: Request, res: Response) => {
+    try {
+        const { id, module } = req.params;
+
+        const result = await StudentService.getAnswerSheet(id, module);
+
+        res.status(200).json({
+            success: true,
+            message: "Answer sheet retrieved successfully",
+            data: result,
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to get answer sheet",
+        });
+    }
+};
+
 export const StudentController = {
     createStudent,
     getAllStudents,
@@ -361,4 +409,6 @@ export const StudentController = {
     getExamResults,
     getAllResults,
     getStatistics,
+    updateScore,
+    getAnswerSheet,
 };

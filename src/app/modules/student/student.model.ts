@@ -165,8 +165,28 @@ const studentSchema = new Schema<IStudent>(
         // Track completed modules
         completedModules: {
             type: [String],
-            enum: ["listening", "reading", "writing"],
+            enum: ["listening", "reading", "writing", "LISTENING", "READING", "WRITING"],
             default: [],
+        },
+
+        // Store student's exam answers for each module
+        examAnswers: {
+            listening: [{
+                questionNumber: Number,
+                studentAnswer: String,
+                correctAnswer: String,
+                isCorrect: Boolean,
+            }],
+            reading: [{
+                questionNumber: Number,
+                studentAnswer: String,
+                correctAnswer: String,
+                isCorrect: Boolean,
+            }],
+            writing: {
+                task1: String,
+                task2: String,
+            },
         },
 
         // Security & violations

@@ -96,4 +96,20 @@ router.post(
     StudentController.resetExam
 );
 
+// Update score for a module (admin)
+router.patch(
+    "/:id/update-score",
+    auth,
+    authorize("admin"),
+    StudentController.updateScore
+);
+
+// Get answer sheet for a module (admin)
+router.get(
+    "/:id/answer-sheet/:module",
+    auth,
+    authorize("admin"),
+    StudentController.getAnswerSheet
+);
+
 export const StudentRoutes = router;
