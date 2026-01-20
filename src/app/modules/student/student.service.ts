@@ -605,16 +605,30 @@ const saveModuleScore = async (
                     // Merge correct answers with student answers and RECALCULATE isCorrect
                     let correctCount = 0;
                     const answersWithCorrect = scoreData.answers.map((ans: any) => {
-                        const studentAns = (ans.studentAnswer || "").toString().trim().toLowerCase();
-                        const correctAns = (correctAnswerMap[ans.questionNumber] || "").toString().trim().toLowerCase();
-                        const isCorrect = studentAns !== "" && studentAns === correctAns;
+                        const studentAns = (ans.studentAnswer || ans.studentAnswerFull || "").toString().trim().toLowerCase();
+                        const correctAnswers = correctAnswerMap[Number(ans.questionNumber)];
+
+                        let isCorrect = false;
+                        let canonicalCorrect = "";
+
+                        if (Array.isArray(correctAnswers)) {
+                            isCorrect = studentAns !== "" && correctAnswers.some(c => c.toString().trim().toLowerCase() === studentAns);
+                            canonicalCorrect = correctAnswers[0]?.toString() || "";
+                        } else {
+                            const correctAns = (correctAnswers || "").toString().trim().toLowerCase();
+                            isCorrect = studentAns !== "" && studentAns === correctAns;
+                            canonicalCorrect = correctAnswers?.toString() || "";
+                        }
+
                         if (isCorrect) correctCount++;
+
                         return {
                             questionNumber: ans.questionNumber,
                             questionText: ans.questionText || "",
                             questionType: ans.questionType || "fill-in-blank",
-                            studentAnswer: ans.studentAnswer || "",
-                            correctAnswer: correctAnswerMap[ans.questionNumber] || ans.correctAnswer || "",
+                            studentAnswer: ans.studentAnswer || "", // The extracted letter or short answer
+                            studentAnswerFull: ans.studentAnswerFull || ans.studentAnswer || "", // Full answer for reference
+                            correctAnswer: canonicalCorrect || ans.correctAnswer || "",
                             isCorrect: isCorrect
                         };
                     });
@@ -646,16 +660,30 @@ const saveModuleScore = async (
                     // Merge correct answers with student answers and RECALCULATE isCorrect
                     let correctCount = 0;
                     const answersWithCorrect = scoreData.answers.map((ans: any) => {
-                        const studentAns = (ans.studentAnswer || "").toString().trim().toLowerCase();
-                        const correctAns = (correctAnswerMap[ans.questionNumber] || "").toString().trim().toLowerCase();
-                        const isCorrect = studentAns !== "" && studentAns === correctAns;
+                        const studentAns = (ans.studentAnswer || ans.studentAnswerFull || "").toString().trim().toLowerCase();
+                        const correctAnswers = correctAnswerMap[Number(ans.questionNumber)];
+
+                        let isCorrect = false;
+                        let canonicalCorrect = "";
+
+                        if (Array.isArray(correctAnswers)) {
+                            isCorrect = studentAns !== "" && correctAnswers.some(c => c.toString().trim().toLowerCase() === studentAns);
+                            canonicalCorrect = correctAnswers[0]?.toString() || "";
+                        } else {
+                            const correctAns = (correctAnswers || "").toString().trim().toLowerCase();
+                            isCorrect = studentAns !== "" && studentAns === correctAns;
+                            canonicalCorrect = correctAnswers?.toString() || "";
+                        }
+
                         if (isCorrect) correctCount++;
+
                         return {
                             questionNumber: ans.questionNumber,
                             questionText: ans.questionText || "",
                             questionType: ans.questionType || "fill-in-blank",
                             studentAnswer: ans.studentAnswer || "",
-                            correctAnswer: correctAnswerMap[ans.questionNumber] || ans.correctAnswer || "",
+                            studentAnswerFull: ans.studentAnswerFull || ans.studentAnswer || "",
+                            correctAnswer: canonicalCorrect || ans.correctAnswer || "",
                             isCorrect: isCorrect
                         };
                     });
@@ -953,12 +981,31 @@ const getAnswerSheet = async (studentId: string, module: string) => {
                         const setType = moduleName.toUpperCase() as "LISTENING" | "READING";
                         const questionData = await getQuestionTextsFromSet(setType, setNumber as number);
 
-                        // Merge questionText and correctAnswer into answers
-                        answers = answers.map((ans: any) => ({
-                            ...ans,
-                            questionText: questionData[ans.questionNumber]?.questionText || `Question ${ans.questionNumber}`,
-                            correctAnswer: ans.correctAnswer || questionData[ans.questionNumber]?.correctAnswer || ""
-                        }));
+                        // Merge questionText, correctAnswer and RECALCULATE isCorrect for display accuracy
+                        answers = answers.map((ans: any) => {
+                            const qNum = Number(ans.questionNumber);
+                            const qData = questionData[qNum];
+                            const studentAns = (ans.studentAnswer || ans.studentAnswerFull || "").toString().trim().toLowerCase();
+                            const correctAnswers = qData?.correctAnswer;
+
+                            let isCorrect = ans.isCorrect;
+                            if (studentAns !== "" && correctAnswers) {
+                                if (Array.isArray(correctAnswers)) {
+                                    isCorrect = correctAnswers.some(c => c.toString().trim().toLowerCase() === studentAns);
+                                } else {
+                                    isCorrect = studentAns === correctAnswers.toString().trim().toLowerCase();
+                                }
+                            }
+
+                            return {
+                                ...ans,
+                                questionText: qData?.questionText || `Question ${ans.questionNumber}`,
+                                correctAnswer: ans.correctAnswer || (Array.isArray(correctAnswers) ? correctAnswers[0] : correctAnswers) || "",
+                                studentAnswer: ans.studentAnswer || "",
+                                studentAnswerFull: ans.studentAnswerFull || ans.studentAnswer || "",
+                                isCorrect: isCorrect
+                            };
+                        });
                     }
                 } catch (err) {
                     console.error("Failed to fetch question texts:", err);

@@ -172,20 +172,26 @@ const studentSchema = new Schema<IStudent>(
         // Store student's exam answers for each module
         examAnswers: {
             listening: [{
-                questionNumber: Number,
-                studentAnswer: String,
-                correctAnswer: String,
-                isCorrect: Boolean,
+                questionNumber: { type: Number, required: true },
+                questionText: { type: String, default: "" },
+                questionType: { type: String, default: "fill-in-blank" },
+                studentAnswer: { type: String, default: "" },
+                studentAnswerFull: { type: String, default: "" },
+                correctAnswer: { type: String, default: "" },
+                isCorrect: { type: Boolean, default: false },
             }],
             reading: [{
-                questionNumber: Number,
-                studentAnswer: String,
-                correctAnswer: String,
-                isCorrect: Boolean,
+                questionNumber: { type: Number, required: true },
+                questionText: { type: String, default: "" },
+                questionType: { type: String, default: "fill-in-blank" },
+                studentAnswer: { type: String, default: "" },
+                studentAnswerFull: { type: String, default: "" },
+                correctAnswer: { type: String, default: "" },
+                isCorrect: { type: Boolean, default: false },
             }],
             writing: {
-                task1: String,
-                task2: String,
+                task1: { type: String, default: "" },
+                task2: { type: String, default: "" },
             },
         },
 
@@ -287,8 +293,9 @@ studentSchema.statics.generateExamId = async function (): Promise<string> {
 };
 
 // Create the model with static methods
-interface IStudentModel extends ReturnType<typeof model<IStudent>> {
+import { Model } from "mongoose";
+interface IStudentModel extends Model<IStudent> {
     generateExamId(): Promise<string>;
 }
 
-export const Student = model<IStudent>("Student", studentSchema) as IStudentModel;
+export const Student = model<IStudent, IStudentModel>("Student", studentSchema);
