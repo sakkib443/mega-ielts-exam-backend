@@ -3,6 +3,7 @@ import { StudentController } from "./student.controller";
 import { auth, authorize } from "../../middlewares/auth";
 import validateRequest from "../../middlewares/validateRequest";
 import { StudentValidation } from "./student.validation";
+// Routes updated with resetModule
 
 const router = Router();
 
@@ -112,4 +113,29 @@ router.get(
     StudentController.getAnswerSheet
 );
 
+// Update all scores at once (admin)
+router.patch(
+    "/:id/update-all-scores",
+    auth,
+    authorize("admin"),
+    StudentController.updateAllScores
+);
+
+// Publish results for student (admin)
+router.post(
+    "/:id/publish-results",
+    auth,
+    authorize("admin"),
+    StudentController.publishResults
+);
+
+// Reset individual module (admin)
+router.post(
+    "/:id/reset-module",
+    auth,
+    authorize("admin"),
+    StudentController.resetModule
+);
+
 export const StudentRoutes = router;
+

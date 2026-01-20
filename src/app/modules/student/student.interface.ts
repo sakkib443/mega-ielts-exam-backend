@@ -122,6 +122,8 @@ export interface IStudent {
     // Status flags
     isActive: boolean;
     canRetake: boolean; // Admin can reset this
+    resultsPublished: boolean; // When true, students can see their results
+    adminRemarks?: string; // Admin comments on the exam
 
     // Linked user account (auto-created)
     userId?: Types.ObjectId;

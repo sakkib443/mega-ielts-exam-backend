@@ -214,6 +214,13 @@ const studentSchema = new Schema<IStudent>(
             type: Boolean,
             default: false,
         },
+        resultsPublished: {
+            type: Boolean,
+            default: false,
+        },
+        adminRemarks: {
+            type: String,
+        },
 
         // Linked user account
         userId: {

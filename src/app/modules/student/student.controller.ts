@@ -229,6 +229,12 @@ const saveModuleScore = async (req: Request, res: Response) => {
     try {
         const { examId, module, scoreData } = req.body;
 
+        console.log("=== saveModuleScore Controller ===");
+        console.log("examId:", examId);
+        console.log("module:", module);
+        console.log("scoreData:", JSON.stringify(scoreData, null, 2));
+        console.log("scoreData.answers:", scoreData?.answers);
+
         if (!examId || !module || !scoreData) {
             return res.status(400).json({
                 success: false,
@@ -244,6 +250,7 @@ const saveModuleScore = async (req: Request, res: Response) => {
             data: result,
         });
     } catch (error: any) {
+        console.error("saveModuleScore error:", error);
         res.status(400).json({
             success: false,
             message: error.message || "Failed to save module score",
@@ -393,6 +400,81 @@ const getAnswerSheet = async (req: Request, res: Response) => {
     }
 };
 
+// Update all scores at once (Admin)
+const updateAllScores = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { listening, reading, writing, adminRemarks } = req.body;
+
+        const result = await StudentService.updateAllScores(id, {
+            listening,
+            reading,
+            writing,
+            adminRemarks,
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "All scores updated successfully",
+            data: result,
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to update scores",
+        });
+    }
+};
+
+// Publish results for student (Admin)
+const publishResults = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { publish = true } = req.body;
+
+        const result = await StudentService.publishResults(id, publish);
+
+        res.status(200).json({
+            success: true,
+            message: result.message,
+            data: result,
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to publish results",
+        });
+    }
+};
+
+// Reset individual module (admin only)
+const resetModule = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { module } = req.body;
+
+        if (!module || !["listening", "reading", "writing"].includes(module)) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid module name is required (listening, reading, or writing)",
+            });
+        }
+
+        const result = await StudentService.resetModule(id, module);
+
+        res.status(200).json({
+            success: true,
+            message: result.message,
+            data: result,
+        });
+    } catch (error: any) {
+        res.status(400).json({
+            success: false,
+            message: error.message || "Failed to reset module",
+        });
+    }
+};
+
 export const StudentController = {
     createStudent,
     getAllStudents,
@@ -411,4 +493,7 @@ export const StudentController = {
     getStatistics,
     updateScore,
     getAnswerSheet,
+    updateAllScores,
+    publishResults,
+    resetModule,
 };

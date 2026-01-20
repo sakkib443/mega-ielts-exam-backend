@@ -552,87 +552,114 @@ const saveModuleScore = async (
         band: number;
         task1Words?: number;
         task2Words?: number;
-        answers?: any; // Added answers field
+        answers?: any;
     }
 ) => {
+    console.log("[saveModuleScore] Starting for examId:", examId, "module:", module);
+    console.log("[saveModuleScore] scoreData:", JSON.stringify(scoreData, null, 2));
+
+    // First find the student
     const student = await Student.findOne({ examId: examId.toUpperCase() });
 
     if (!student) {
         throw new Error("Student not found");
     }
 
-    // Initialize objects if they don't exist
-    if (!student.scores) student.scores = {} as any;
-    if (!student.completedModules) student.completedModules = [];
-    if (!student.examAnswers) student.examAnswers = {};
-
     // Check if module already completed
-    if (student.completedModules.includes(module)) {
+    const completedModules = student.completedModules || [];
+    if (completedModules.includes(module)) {
         throw new Error(`${module} exam has already been completed`);
     }
 
-    // Save module-specific score and answers
+    // Build update object using dot notation for nested fields
+    const updateObj: Record<string, any> = {
+        examStatus: "in-progress",
+    };
+
+    // Add module to completedModules
+    const newCompletedModules = [...completedModules, module];
+    updateObj.completedModules = newCompletedModules;
+
+    // Check if all modules completed
+    if (newCompletedModules.length >= 3) {
+        updateObj.examStatus = "completed";
+        updateObj.examCompletedAt = new Date();
+    }
+
+    // Set module-specific scores and answers
     if (module === "listening") {
-        student.scores!.listening = {
+        updateObj["scores.listening"] = {
             raw: scoreData.score || 0,
             band: scoreData.band,
             correctAnswers: scoreData.score || 0,
             totalQuestions: scoreData.total || 40,
         };
-        if (scoreData.answers) student.examAnswers.listening = scoreData.answers;
+        if (scoreData.answers) {
+            updateObj["examAnswers.listening"] = scoreData.answers;
+        }
     } else if (module === "reading") {
-        student.scores!.reading = {
+        updateObj["scores.reading"] = {
             raw: scoreData.score || 0,
             band: scoreData.band,
             correctAnswers: scoreData.score || 0,
             totalQuestions: scoreData.total || 40,
         };
-        if (scoreData.answers) student.examAnswers.reading = scoreData.answers;
+        if (scoreData.answers) {
+            updateObj["examAnswers.reading"] = scoreData.answers;
+        }
     } else if (module === "writing") {
-        student.scores!.writing = {
+        updateObj["scores.writing"] = {
             task1Band: scoreData.band,
             task2Band: scoreData.band,
             overallBand: scoreData.band,
         };
         if (scoreData.answers) {
-            student.examAnswers.writing = {
+            console.log("[saveModuleScore] Writing answers to save:", scoreData.answers);
+            updateObj["examAnswers.writing"] = {
                 task1: scoreData.answers.task1 || "",
                 task2: scoreData.answers.task2 || "",
             };
+            console.log("[saveModuleScore] updateObj examAnswers.writing:", updateObj["examAnswers.writing"]);
+        } else {
+            console.log("[saveModuleScore] No writing answers in scoreData!");
         }
     }
 
-    // Add to completed modules
-    student.completedModules.push(module);
+    // Calculate overall band
+    const existingScores = student.scores || {} as any;
+    const listeningBand = module === "listening" ? scoreData.band : (existingScores.listening?.band || 0);
+    const readingBand = module === "reading" ? scoreData.band : (existingScores.reading?.band || 0);
+    const writingBand = module === "writing" ? scoreData.band : (existingScores.writing?.overallBand || 0);
 
-    // Calculate overall band if enough modules done
-    const listeningBand = student.scores?.listening?.band || 0;
-    const readingBand = student.scores?.reading?.band || 0;
-    const writingBand = student.scores?.writing?.overallBand || 0;
-
-    if (listeningBand > 0 || readingBand > 0 || writingBand > 0) {
-        const bands = [listeningBand, readingBand, writingBand].filter(b => b > 0);
+    const bands = [listeningBand, readingBand, writingBand].filter(b => b > 0);
+    if (bands.length > 0) {
         const sum = bands.reduce((a, b) => a + b, 0);
-        student.scores.overall = Math.round((sum / bands.length) * 2) / 2;
+        updateObj["scores.overall"] = Math.round((sum / bands.length) * 2) / 2;
     }
 
-    // Update exam status
-    if (student.completedModules.length >= 3) {
-        student.examStatus = "completed";
-        student.examCompletedAt = new Date();
-    } else {
-        student.examStatus = "in-progress";
+    console.log("[saveModuleScore] Final updateObj:", JSON.stringify(updateObj, null, 2));
+
+    // Use findOneAndUpdate with $set to properly update nested documents
+    const updatedStudent = await Student.findOneAndUpdate(
+        { examId: examId.toUpperCase() },
+        { $set: updateObj },
+        { new: true, runValidators: true }
+    );
+
+    if (!updatedStudent) {
+        throw new Error("Failed to update student");
     }
 
-    await student.save();
+    console.log("[saveModuleScore] Updated student examAnswers:", updatedStudent.examAnswers);
+    console.log("[saveModuleScore] Updated student writing answers:", updatedStudent.examAnswers?.writing);
 
     return {
-        examId: student.examId,
+        examId: updatedStudent.examId,
         module,
         band: scoreData.band,
-        completedModules: student.completedModules,
-        allCompleted: student.completedModules.length === 3,
-        scores: student.scores,
+        completedModules: updatedStudent.completedModules,
+        allCompleted: (updatedStudent.completedModules?.length || 0) >= 3,
+        scores: updatedStudent.scores,
     };
 };
 
@@ -837,7 +864,18 @@ const getAnswerSheet = async (studentId: string, module: string) => {
     }
 
     const moduleName = module.toLowerCase();
-    const answers = student.examAnswers?.[moduleName as keyof typeof student.examAnswers] || [];
+
+    // Get answers based on module type
+    let answers: any;
+    if (moduleName === 'writing') {
+        // Writing returns an object with task1 and task2
+        answers = student.examAnswers?.writing || { task1: '', task2: '' };
+    } else {
+        // Listening and Reading return arrays
+        answers = student.examAnswers?.[moduleName as 'listening' | 'reading'] || [];
+    }
+
+    console.log(`[getAnswerSheet] Module: ${moduleName}, Answers:`, answers);
 
     return {
         student: {
@@ -848,6 +886,181 @@ const getAnswerSheet = async (studentId: string, module: string) => {
         module: moduleName,
         answers,
         scores: student.scores?.[moduleName as keyof typeof student.scores],
+    };
+};
+
+// Update all scores at once (admin) - for comprehensive score editing
+const updateAllScores = async (
+    studentId: string,
+    scoresData: {
+        listening?: { band: number; correctAnswers?: number };
+        reading?: { band: number; correctAnswers?: number };
+        writing?: { task1Band: number; task2Band: number; overallBand: number };
+        adminRemarks?: string;
+    }
+) => {
+    const student = await Student.findById(studentId);
+    if (!student) {
+        throw new Error("Student not found");
+    }
+
+    if (!student.scores) {
+        student.scores = {
+            listening: { raw: 0, band: 0, correctAnswers: 0, totalQuestions: 40 },
+            reading: { raw: 0, band: 0, correctAnswers: 0, totalQuestions: 40 },
+            writing: { task1Band: 0, task2Band: 0, overallBand: 0 },
+            overall: 0,
+        };
+    }
+
+    // Update listening scores
+    if (scoresData.listening) {
+        student.scores.listening.band = scoresData.listening.band;
+        if (scoresData.listening.correctAnswers !== undefined) {
+            student.scores.listening.correctAnswers = scoresData.listening.correctAnswers;
+            student.scores.listening.raw = scoresData.listening.correctAnswers;
+        }
+    }
+
+    // Update reading scores
+    if (scoresData.reading) {
+        student.scores.reading.band = scoresData.reading.band;
+        if (scoresData.reading.correctAnswers !== undefined) {
+            student.scores.reading.correctAnswers = scoresData.reading.correctAnswers;
+            student.scores.reading.raw = scoresData.reading.correctAnswers;
+        }
+    }
+
+    // Update writing scores
+    if (scoresData.writing) {
+        student.scores.writing.task1Band = scoresData.writing.task1Band;
+        student.scores.writing.task2Band = scoresData.writing.task2Band;
+        student.scores.writing.overallBand = scoresData.writing.overallBand;
+    }
+
+    // Update admin remarks
+    if (scoresData.adminRemarks !== undefined) {
+        student.adminRemarks = scoresData.adminRemarks;
+    }
+
+    // Recalculate overall band score
+    const listening = student.scores.listening?.band || 0;
+    const reading = student.scores.reading?.band || 0;
+    const writing = student.scores.writing?.overallBand || 0;
+
+    const bands = [listening, reading, writing].filter(b => b > 0);
+    if (bands.length > 0) {
+        const sum = bands.reduce((a, b) => a + b, 0);
+        student.scores.overall = Math.round((sum / bands.length) * 2) / 2; // Round to nearest 0.5
+    }
+
+    await student.save();
+
+    return student;
+};
+
+// Publish results for student (admin)
+const publishResults = async (studentId: string, publish: boolean = true) => {
+    const student = await Student.findById(studentId);
+    if (!student) {
+        throw new Error("Student not found");
+    }
+
+    student.resultsPublished = publish;
+
+    // If publishing, ensure exam status is completed
+    if (publish && student.examStatus !== "completed") {
+        student.examStatus = "completed";
+        if (!student.examCompletedAt) {
+            student.examCompletedAt = new Date();
+        }
+    }
+
+    await student.save();
+
+    return {
+        _id: student._id,
+        examId: student.examId,
+        nameEnglish: student.nameEnglish,
+        resultsPublished: student.resultsPublished,
+        scores: student.scores,
+        message: publish ? "Results published successfully" : "Results unpublished",
+    };
+};
+
+// Reset individual module (admin only)
+const resetModule = async (
+    studentId: string,
+    module: "listening" | "reading" | "writing"
+) => {
+    const student = await Student.findById(studentId);
+    if (!student) {
+        throw new Error("Student not found");
+    }
+
+    const completedModules = student.completedModules || [];
+
+    // Check if module is completed
+    if (!completedModules.includes(module)) {
+        throw new Error(`${module} module is not completed yet`);
+    }
+
+    // Build update object to remove module data
+    const updateObj: Record<string, any> = {};
+    const unsetObj: Record<string, any> = {};
+
+    // Remove module from completedModules
+    const newCompletedModules = completedModules.filter(m => m !== module);
+    updateObj.completedModules = newCompletedModules;
+
+    // Clear module score and answers using $unset
+    unsetObj[`scores.${module}`] = "";
+    unsetObj[`examAnswers.${module}`] = "";
+
+    // Update exam status
+    if (newCompletedModules.length === 0) {
+        updateObj.examStatus = "not-started";
+    } else if (newCompletedModules.length < 3) {
+        updateObj.examStatus = "in-progress";
+    }
+
+    // Recalculate overall band from remaining modules
+    const existingScores = student.scores || {} as any;
+    const listeningBand = module === "listening" ? 0 : (existingScores.listening?.band || 0);
+    const readingBand = module === "reading" ? 0 : (existingScores.reading?.band || 0);
+    const writingBand = module === "writing" ? 0 : (existingScores.writing?.overallBand || 0);
+
+    const bands = [listeningBand, readingBand, writingBand].filter(b => b > 0);
+    if (bands.length > 0) {
+        const sum = bands.reduce((a, b) => a + b, 0);
+        updateObj["scores.overall"] = Math.round((sum / bands.length) * 2) / 2;
+    } else {
+        unsetObj["scores.overall"] = "";
+    }
+
+    // Perform update
+    const updatedStudent = await Student.findByIdAndUpdate(
+        studentId,
+        {
+            $set: updateObj,
+            $unset: unsetObj
+        },
+        { new: true }
+    );
+
+    if (!updatedStudent) {
+        throw new Error("Failed to reset module");
+    }
+
+    return {
+        _id: updatedStudent._id,
+        examId: updatedStudent.examId,
+        nameEnglish: updatedStudent.nameEnglish,
+        module,
+        completedModules: updatedStudent.completedModules,
+        examStatus: updatedStudent.examStatus,
+        scores: updatedStudent.scores,
+        message: `${module} module reset successfully. Student can now retake this module.`,
     };
 };
 
@@ -869,4 +1082,7 @@ export const StudentService = {
     getStatistics,
     updateScore,
     getAnswerSheet,
+    updateAllScores,
+    publishResults,
+    resetModule,
 };
