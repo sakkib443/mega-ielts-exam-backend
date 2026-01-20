@@ -282,7 +282,12 @@ const verifyExamId = async (examId: string) => {
 
     // Check if already completed
     if (student.examStatus === "completed" && !student.canRetake) {
-        return { valid: false, message: "You have already completed this exam" };
+        return {
+            valid: false,
+            message: "You have already completed this exam",
+            completedModules: student.completedModules || [],
+            scores: student.scores,
+        };
     }
 
     if (student.examStatus === "terminated") {
@@ -575,18 +580,8 @@ const saveModuleScore = async (
 
     // Build update object using dot notation for nested fields
     const updateObj: Record<string, any> = {
-        examStatus: "in-progress",
+        // We will update examStatus later if needed, to avoid race conditions
     };
-
-    // Add module to completedModules
-    const newCompletedModules = [...completedModules, module];
-    updateObj.completedModules = newCompletedModules;
-
-    // Check if all modules completed
-    if (newCompletedModules.length >= 3) {
-        updateObj.examStatus = "completed";
-        updateObj.examCompletedAt = new Date();
-    }
 
     // Set module-specific scores and answers
     if (module === "listening") {
@@ -731,10 +726,13 @@ const saveModuleScore = async (
 
     console.log("[saveModuleScore] Final updateObj:", JSON.stringify(updateObj, null, 2));
 
-    // Use findOneAndUpdate with $set to properly update nested documents
+    // Use findOneAndUpdate with $addToSet to avoid race conditions when multiple modules complete at once
     const updatedStudent = await Student.findOneAndUpdate(
         { examId: examId.toUpperCase() },
-        { $set: updateObj },
+        {
+            $set: updateObj,
+            $addToSet: { completedModules: module }
+        },
         { new: true, runValidators: true }
     );
 
@@ -742,7 +740,18 @@ const saveModuleScore = async (
         throw new Error("Failed to update student");
     }
 
-    console.log("[saveModuleScore] Updated student examAnswers:", updatedStudent.examAnswers);
+    // After atomic update, check if all modules are now completed
+    const currentCompletedCount = updatedStudent.completedModules?.length || 0;
+    if (currentCompletedCount >= 3 && updatedStudent.examStatus !== "completed") {
+        updatedStudent.examStatus = "completed";
+        updatedStudent.examCompletedAt = new Date();
+        await updatedStudent.save();
+    } else if (updatedStudent.examStatus === "not-started") {
+        updatedStudent.examStatus = "in-progress";
+        await updatedStudent.save();
+    }
+
+    console.log("[saveModuleScore] Updated student completedModules:", updatedStudent.completedModules);
     console.log("[saveModuleScore] Updated student writing answers:", updatedStudent.examAnswers?.writing);
 
     return {
