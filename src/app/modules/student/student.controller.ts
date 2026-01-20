@@ -475,11 +475,38 @@ const resetModule = async (req: Request, res: Response) => {
     }
 };
 
+// Get current logged in student profile
+const getMyProfile = async (req: Request, res: Response) => {
+    try {
+        const email = (req as any).user?.email;
+        if (!email) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized",
+            });
+        }
+
+        const student = await StudentService.getStudentByEmail(email);
+
+        res.status(200).json({
+            success: true,
+            message: "Student profile retrieved successfully",
+            data: student,
+        });
+    } catch (error: any) {
+        res.status(404).json({
+            success: false,
+            message: error.message || "Profile not found",
+        });
+    }
+};
+
 export const StudentController = {
     createStudent,
     getAllStudents,
     getStudentById,
     getStudentByExamId,
+    getMyProfile,
     updateStudent,
     deleteStudent,
     verifyExamId,

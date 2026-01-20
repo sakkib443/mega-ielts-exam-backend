@@ -2,6 +2,8 @@ import { Student } from "./student.model";
 import { User } from "../user/user.model";
 import { ICreateStudentInput, IStudentFilters, ExamStatus } from "./student.interface";
 import { Types } from "mongoose";
+import { QuestionSetService } from "../questionSet/questionSet.service";
+// Updated: questionText + isCorrect recalculation on backend v2
 
 // Generate unique exam ID
 const generateExamId = async (): Promise<string> => {
@@ -594,8 +596,39 @@ const saveModuleScore = async (
             correctAnswers: scoreData.score || 0,
             totalQuestions: scoreData.total || 40,
         };
-        if (scoreData.answers) {
-            updateObj["examAnswers.listening"] = scoreData.answers;
+        if (scoreData.answers && Array.isArray(scoreData.answers)) {
+            // Fetch correct answers from question set
+            try {
+                const listeningSetNumber = student.assignedSets?.listeningSetNumber;
+                if (listeningSetNumber) {
+                    const correctAnswerMap = await QuestionSetService.getAnswersForGrading("LISTENING", listeningSetNumber);
+                    // Merge correct answers with student answers and RECALCULATE isCorrect
+                    let correctCount = 0;
+                    const answersWithCorrect = scoreData.answers.map((ans: any) => {
+                        const studentAns = (ans.studentAnswer || "").toString().trim().toLowerCase();
+                        const correctAns = (correctAnswerMap[ans.questionNumber] || "").toString().trim().toLowerCase();
+                        const isCorrect = studentAns !== "" && studentAns === correctAns;
+                        if (isCorrect) correctCount++;
+                        return {
+                            questionNumber: ans.questionNumber,
+                            questionText: ans.questionText || "",
+                            questionType: ans.questionType || "fill-in-blank",
+                            studentAnswer: ans.studentAnswer || "",
+                            correctAnswer: correctAnswerMap[ans.questionNumber] || ans.correctAnswer || "",
+                            isCorrect: isCorrect
+                        };
+                    });
+                    updateObj["examAnswers.listening"] = answersWithCorrect;
+                    // Update correct answers count in score
+                    updateObj["scores.listening"].correctAnswers = correctCount;
+                    updateObj["scores.listening"].raw = correctCount;
+                } else {
+                    updateObj["examAnswers.listening"] = scoreData.answers;
+                }
+            } catch (err) {
+                console.error("Failed to fetch correct answers for listening:", err);
+                updateObj["examAnswers.listening"] = scoreData.answers;
+            }
         }
     } else if (module === "reading") {
         updateObj["scores.reading"] = {
@@ -604,8 +637,39 @@ const saveModuleScore = async (
             correctAnswers: scoreData.score || 0,
             totalQuestions: scoreData.total || 40,
         };
-        if (scoreData.answers) {
-            updateObj["examAnswers.reading"] = scoreData.answers;
+        if (scoreData.answers && Array.isArray(scoreData.answers)) {
+            // Fetch correct answers from question set
+            try {
+                const readingSetNumber = student.assignedSets?.readingSetNumber;
+                if (readingSetNumber) {
+                    const correctAnswerMap = await QuestionSetService.getAnswersForGrading("READING", readingSetNumber);
+                    // Merge correct answers with student answers and RECALCULATE isCorrect
+                    let correctCount = 0;
+                    const answersWithCorrect = scoreData.answers.map((ans: any) => {
+                        const studentAns = (ans.studentAnswer || "").toString().trim().toLowerCase();
+                        const correctAns = (correctAnswerMap[ans.questionNumber] || "").toString().trim().toLowerCase();
+                        const isCorrect = studentAns !== "" && studentAns === correctAns;
+                        if (isCorrect) correctCount++;
+                        return {
+                            questionNumber: ans.questionNumber,
+                            questionText: ans.questionText || "",
+                            questionType: ans.questionType || "fill-in-blank",
+                            studentAnswer: ans.studentAnswer || "",
+                            correctAnswer: correctAnswerMap[ans.questionNumber] || ans.correctAnswer || "",
+                            isCorrect: isCorrect
+                        };
+                    });
+                    updateObj["examAnswers.reading"] = answersWithCorrect;
+                    // Update correct answers count in score
+                    updateObj["scores.reading"].correctAnswers = correctCount;
+                    updateObj["scores.reading"].raw = correctCount;
+                } else {
+                    updateObj["examAnswers.reading"] = scoreData.answers;
+                }
+            } catch (err) {
+                console.error("Failed to fetch correct answers for reading:", err);
+                updateObj["examAnswers.reading"] = scoreData.answers;
+            }
         }
     } else if (module === "writing") {
         updateObj["scores.writing"] = {
@@ -873,9 +937,40 @@ const getAnswerSheet = async (studentId: string, module: string) => {
     } else {
         // Listening and Reading return arrays
         answers = student.examAnswers?.[moduleName as 'listening' | 'reading'] || [];
+
+        // If answers exist but questionText is missing, try to fetch from Question Set
+        if (Array.isArray(answers) && answers.length > 0) {
+            const firstAnswer = answers[0];
+            // Check if questionText is missing or empty
+            if (!firstAnswer.questionText || firstAnswer.questionText === "") {
+                try {
+                    // Get assigned set number
+                    const setNumberKey = moduleName === 'listening' ? 'listeningSetNumber' : 'readingSetNumber';
+                    const setNumber = student.assignedSets?.[setNumberKey as keyof typeof student.assignedSets];
+
+                    if (setNumber) {
+                        // Fetch question texts from the question set
+                        const setType = moduleName.toUpperCase() as "LISTENING" | "READING";
+                        const questionData = await getQuestionTextsFromSet(setType, setNumber as number);
+
+                        // Merge questionText and correctAnswer into answers
+                        answers = answers.map((ans: any) => ({
+                            ...ans,
+                            questionText: questionData[ans.questionNumber]?.questionText || `Question ${ans.questionNumber}`,
+                            correctAnswer: ans.correctAnswer || questionData[ans.questionNumber]?.correctAnswer || ""
+                        }));
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch question texts:", err);
+                }
+            }
+        }
     }
 
-    console.log(`[getAnswerSheet] Module: ${moduleName}, Answers:`, answers);
+    console.log(`[getAnswerSheet] Module: ${moduleName}, Answers count:`, Array.isArray(answers) ? answers.length : 'writing');
+    if (Array.isArray(answers) && answers.length > 0) {
+        console.log(`[getAnswerSheet] Sample answer:`, JSON.stringify(answers[0], null, 2));
+    }
 
     return {
         student: {
@@ -887,6 +982,47 @@ const getAnswerSheet = async (studentId: string, module: string) => {
         answers,
         scores: student.scores?.[moduleName as keyof typeof student.scores],
     };
+};
+
+// Helper function to get question texts from question set
+const getQuestionTextsFromSet = async (setType: "LISTENING" | "READING", setNumber: number): Promise<Record<number, { questionText: string; correctAnswer: string }>> => {
+    const questionData: Record<number, { questionText: string; correctAnswer: string }> = {};
+
+    if (setType === "LISTENING") {
+        const { ListeningTest } = await import("../listening/listening.model");
+        const test = await ListeningTest.findOne({ testNumber: setNumber })
+            .select("sections.questions.questionNumber sections.questions.questionText sections.questions.correctAnswer")
+            .lean();
+
+        if (test?.sections) {
+            test.sections.forEach((section: any) => {
+                section.questions?.forEach((q: any) => {
+                    questionData[q.questionNumber] = {
+                        questionText: q.questionText || "",
+                        correctAnswer: q.correctAnswer || ""
+                    };
+                });
+            });
+        }
+    } else if (setType === "READING") {
+        const { ReadingTest } = await import("../reading/reading.model");
+        const test = await ReadingTest.findOne({ testNumber: setNumber })
+            .select("sections.questions.questionNumber sections.questions.questionText sections.questions.correctAnswer")
+            .lean();
+
+        if (test?.sections) {
+            test.sections.forEach((section: any) => {
+                section.questions?.forEach((q: any) => {
+                    questionData[q.questionNumber] = {
+                        questionText: q.questionText || "",
+                        correctAnswer: q.correctAnswer || ""
+                    };
+                });
+            });
+        }
+    }
+
+    return questionData;
 };
 
 // Update all scores at once (admin) - for comprehensive score editing
@@ -1064,11 +1200,20 @@ const resetModule = async (
     };
 };
 
+const getStudentByEmail = async (email: string) => {
+    const student = await Student.findOne({ email });
+    if (!student) {
+        throw new Error("Student not found");
+    }
+    return student;
+};
+
 export const StudentService = {
     createStudent,
     getAllStudents,
     getStudentById,
     getStudentByExamId,
+    getStudentByEmail,
     updateStudent,
     deleteStudent,
     verifyExamId,

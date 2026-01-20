@@ -41,6 +41,9 @@ router.post("/save-module-score", StudentController.saveModuleScore);
 
 // ============ PROTECTED ROUTES (Require Authentication) ============
 
+// Get current student profile
+router.get("/my-profile", auth, StudentController.getMyProfile);
+
 // Get student by exam ID
 router.get("/exam/:examId", auth, StudentController.getStudentByExamId);
 
