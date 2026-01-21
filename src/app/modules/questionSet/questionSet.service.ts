@@ -251,12 +251,44 @@ const getQuestionSetById = async (id: string, includeAnswers: boolean = false) =
     }
 
     // Map to old format if from new collection
-    if (setType) {
+    if (setType === "LISTENING") {
         return {
             ...set,
             setId: set.testId,
             setNumber: set.testNumber,
-            setType,
+            setType: "LISTENING",
+        };
+    }
+
+    if (setType === "READING") {
+        return {
+            ...set,
+            setId: set.testId,
+            setNumber: set.testNumber,
+            setType: "READING",
+        };
+    }
+
+    if (setType === "WRITING") {
+        // Map tasks to writingTasks format for frontend compatibility
+        const writingTasks = set.tasks?.map((task: any) => ({
+            taskNumber: task.taskNumber,
+            taskType: task.taskType,
+            prompt: task.prompt,
+            instructions: task.instructions,
+            minWords: task.minWords,
+            recommendedTime: task.recommendedTime,
+            imageUrl: task.images?.[0]?.url || "",
+            sampleAnswer: task.sampleAnswer,
+            keyPoints: task.keyPoints,
+        })) || [];
+
+        return {
+            ...set,
+            setId: set.testId,
+            setNumber: set.testNumber,
+            setType: "WRITING",
+            writingTasks,
         };
     }
 
@@ -441,13 +473,158 @@ const getAnswersForGrading = async (setType: SetType, setNumber: number) => {
 };
 
 
-// Update question set
+// Update question set - NOW USES NEW COLLECTIONS
 const updateQuestionSet = async (
     id: string,
     updateData: Partial<ICreateQuestionSetInput>
 ) => {
-    const set = await QuestionSet.findById(id);
+    // Try to find in new collections first
+    let set: any = null;
+    let setType: string = "";
+
+    // Try Listening
+    set = await ListeningTest.findById(id);
+    if (set) {
+        setType = "LISTENING";
+    }
+
+    // Try Reading if not found
     if (!set) {
+        set = await ReadingTest.findById(id);
+        if (set) {
+            setType = "READING";
+        }
+    }
+
+    // Try Writing if not found
+    if (!set) {
+        set = await WritingTest.findById(id);
+        if (set) {
+            setType = "WRITING";
+        }
+    }
+
+    // If found in new collections, update there
+    if (set && setType) {
+        // Prepare update data based on set type
+        const updatePayload: any = {};
+
+        // Common fields
+        if (updateData.title) updatePayload.title = updateData.title;
+        if (updateData.description) updatePayload.description = updateData.description;
+        if (updateData.duration) updatePayload.duration = updateData.duration;
+        if (updateData.difficulty) updatePayload.difficulty = updateData.difficulty;
+
+        // Listening specific
+        if (setType === "LISTENING") {
+            if ((updateData as any).mainAudioUrl !== undefined) {
+                updatePayload.mainAudioUrl = (updateData as any).mainAudioUrl;
+            }
+            if ((updateData as any).audioDuration !== undefined) {
+                updatePayload.audioDuration = (updateData as any).audioDuration;
+            }
+            if (updateData.sections) {
+                updatePayload.sections = updateData.sections;
+                // Recalculate totals
+                let totalQuestions = 0;
+                let totalMarks = 0;
+                updateData.sections.forEach((section) => {
+                    totalQuestions += section.questions?.length || 0;
+                    section.questions?.forEach((q) => {
+                        totalMarks += q.marks || 1;
+                    });
+                });
+                updatePayload.totalQuestions = totalQuestions;
+                updatePayload.totalMarks = totalMarks;
+            }
+
+            const updatedSet = await ListeningTest.findByIdAndUpdate(
+                id,
+                { $set: updatePayload },
+                { new: true, runValidators: true }
+            );
+            return {
+                ...updatedSet?.toObject(),
+                setId: updatedSet?.testId,
+                setNumber: updatedSet?.testNumber,
+                setType: "LISTENING",
+            };
+        }
+
+        // Reading specific
+        if (setType === "READING") {
+            if (updateData.sections) {
+                updatePayload.sections = updateData.sections;
+                let totalQuestions = 0;
+                let totalMarks = 0;
+                updateData.sections.forEach((section) => {
+                    totalQuestions += section.questions?.length || 0;
+                    section.questions?.forEach((q) => {
+                        totalMarks += q.marks || 1;
+                    });
+                });
+                updatePayload.totalQuestions = totalQuestions;
+                updatePayload.totalMarks = totalMarks;
+            }
+
+            const updatedSet = await ReadingTest.findByIdAndUpdate(
+                id,
+                { $set: updatePayload },
+                { new: true, runValidators: true }
+            );
+            return {
+                ...updatedSet?.toObject(),
+                setId: updatedSet?.testId,
+                setNumber: updatedSet?.testNumber,
+                setType: "READING",
+            };
+        }
+
+        // Writing specific
+        if (setType === "WRITING") {
+            if ((updateData as any).writingTasks) {
+                // Get existing tasks to preserve taskType and subType
+                const existingTasks = set.tasks || [];
+
+                updatePayload.tasks = (updateData as any).writingTasks.map((task: any, index: number) => {
+                    const existingTask = existingTasks[index] || {};
+                    return {
+                        taskNumber: task.taskNumber,
+                        // Preserve existing taskType or use correct default
+                        taskType: existingTask.taskType || (task.taskNumber === 1 ? "task1-academic" : "task2"),
+                        // Preserve existing subType or use correct default
+                        subType: existingTask.subType || (task.taskNumber === 1 ? "line-graph" : "opinion"),
+                        prompt: task.prompt || existingTask.prompt || "",
+                        instructions: task.instructions || existingTask.instructions || "Write your response.",
+                        minWords: task.minWords || existingTask.minWords || (task.taskNumber === 1 ? 150 : 250),
+                        recommendedTime: task.recommendedTime || existingTask.recommendedTime || (task.taskNumber === 1 ? 20 : 40),
+                        images: task.imageUrl ? [{ url: task.imageUrl, description: "Task image" }] : (existingTask.images || []),
+                        // Preserve other existing fields
+                        keyPoints: existingTask.keyPoints || [],
+                        sampleAnswer: existingTask.sampleAnswer || "",
+                        bandDescriptors: existingTask.bandDescriptors || [],
+                        examinerTips: existingTask.examinerTips || [],
+                    };
+                });
+            }
+
+            const updatedSet = await WritingTest.findByIdAndUpdate(
+                id,
+                { $set: updatePayload },
+                { new: true, runValidators: true }
+            );
+            return {
+                ...updatedSet?.toObject(),
+                setId: updatedSet?.testId,
+                setNumber: updatedSet?.testNumber,
+                setType: "WRITING",
+            };
+        }
+    }
+
+    // Fallback to old collection
+    const oldSet = await QuestionSet.findById(id);
+    if (!oldSet) {
         throw new Error("Question set not found");
     }
 

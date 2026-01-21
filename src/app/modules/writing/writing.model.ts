@@ -4,7 +4,7 @@ import { IWritingTest, IWritingTask, IWritingSubmission } from "./writing.interf
 // Image Schema
 const ImageSchema = new Schema({
     url: { type: String, required: true },
-    description: { type: String, required: true },
+    description: { type: String, default: "" },
     caption: { type: String }
 });
 
