@@ -35,9 +35,9 @@ const createStudentSchema = z.object({
         examDate: z
             .string({ message: "Exam date is required" })
             .datetime("Invalid date format"),
-        listeningSetNumber: z.number().int().min(1).max(100).optional(),
-        readingSetNumber: z.number().int().min(1).max(100).optional(),
-        writingSetNumber: z.number().int().min(1).max(100).optional(),
+        listeningSetNumber: z.number().int().min(1).max(10000).optional(),
+        readingSetNumber: z.number().int().min(1).max(10000).optional(),
+        writingSetNumber: z.number().int().min(1).max(10000).optional(),
     }),
 });
 
@@ -64,9 +64,9 @@ const updateStudentSchema = z.object({
         paymentDate: z.string().datetime().optional(),
         paymentReference: z.string().optional(),
         examDate: z.string().datetime().optional(),
-        listeningSetNumber: z.number().int().min(1).max(100).optional(),
-        readingSetNumber: z.number().int().min(1).max(100).optional(),
-        writingSetNumber: z.number().int().min(1).max(100).optional(),
+        listeningSetNumber: z.number().int().min(1).max(10000).optional(),
+        readingSetNumber: z.number().int().min(1).max(10000).optional(),
+        writingSetNumber: z.number().int().min(1).max(10000).optional(),
         isActive: z.boolean().optional(),
         canRetake: z.boolean().optional(),
     }),

@@ -70,6 +70,9 @@ export interface IReadingQuestion {
     // Marks
     marks: number;
 
+    // Specific instruction for this question
+    instruction?: string;
+
     // Explanation
     explanation?: string;
 }
