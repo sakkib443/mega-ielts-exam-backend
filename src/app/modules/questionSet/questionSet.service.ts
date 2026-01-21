@@ -426,13 +426,15 @@ const getAnswersForGrading = async (setType: SetType, setNumber: number) => {
 
     if (setType === "LISTENING") {
         const test = await ListeningTest.findOne({ testNumber: setNumber })
-            .select("sections.questions.questionNumber sections.questions.correctAnswer sections.questions.acceptableAnswers")
+            .select("sections.questions.correctAnswer")
             .lean();
 
         if (test?.sections) {
+            let globalCounter = 0;
             test.sections.forEach((section: any) => {
                 section.questions?.forEach((q: any) => {
-                    answerMap[q.questionNumber] = q.correctAnswer;
+                    globalCounter++;
+                    answerMap[globalCounter] = q.correctAnswer;
                 });
             });
             return answerMap;
@@ -444,19 +446,20 @@ const getAnswersForGrading = async (setType: SetType, setNumber: number) => {
         const passagesOrSections = (test as any)?.passages || test?.sections;
 
         if (passagesOrSections) {
+            let globalCounter = 0;
             passagesOrSections.forEach((passage: any) => {
                 // Get answers from direct questions array
                 passage.questions?.forEach((q: any) => {
-                    answerMap[q.questionNumber] = q.correctAnswer;
+                    globalCounter++;
+                    answerMap[globalCounter] = q.correctAnswer;
                 });
 
                 // Extract answers from questionGroups
                 passage.questionGroups?.forEach((group: any) => {
                     // Questions are directly in questionGroups[].questions[] array
                     group.questions?.forEach((q: any) => {
-                        if (q.questionNumber && q.correctAnswer) {
-                            answerMap[q.questionNumber] = q.correctAnswer;
-                        }
+                        globalCounter++;
+                        answerMap[globalCounter] = q.correctAnswer;
                     });
 
                     // Also check nested structures
@@ -464,8 +467,9 @@ const getAnswersForGrading = async (setType: SetType, setNumber: number) => {
                     if (group.notesSections) {
                         group.notesSections.forEach((noteSection: any) => {
                             noteSection.bullets?.forEach((bullet: any) => {
-                                if (bullet.questionNumber && bullet.correctAnswer && bullet.type !== "context") {
-                                    answerMap[bullet.questionNumber] = bullet.correctAnswer;
+                                if (bullet.type !== "context" && bullet.correctAnswer) {
+                                    globalCounter++;
+                                    answerMap[globalCounter] = bullet.correctAnswer;
                                 }
                             });
                         });
@@ -474,26 +478,25 @@ const getAnswersForGrading = async (setType: SetType, setNumber: number) => {
                     // statements array
                     if (group.statements) {
                         group.statements.forEach((stmt: any) => {
-                            if (stmt.questionNumber && stmt.correctAnswer) {
-                                answerMap[stmt.questionNumber] = stmt.correctAnswer;
-                            }
+                            globalCounter++;
+                            answerMap[globalCounter] = stmt.correctAnswer;
                         });
                     }
 
                     // matchingItems array
                     if (group.matchingItems) {
                         group.matchingItems.forEach((item: any) => {
-                            if (item.questionNumber && item.correctAnswer) {
-                                answerMap[item.questionNumber] = item.correctAnswer;
-                            }
+                            globalCounter++;
+                            answerMap[globalCounter] = item.correctAnswer;
                         });
                     }
 
                     // summarySegments
                     if (group.summarySegments) {
                         group.summarySegments.forEach((segment: any) => {
-                            if (segment.type === "blank" && segment.questionNumber && segment.correctAnswer) {
-                                answerMap[segment.questionNumber] = segment.correctAnswer;
+                            if (segment.type === "blank" && segment.correctAnswer) {
+                                globalCounter++;
+                                answerMap[globalCounter] = segment.correctAnswer;
                             }
                         });
                     }
@@ -501,11 +504,9 @@ const getAnswersForGrading = async (setType: SetType, setNumber: number) => {
                     // questionSets (choose-two-letters)
                     if (group.questionSets) {
                         group.questionSets.forEach((qSet: any) => {
-                            qSet.questionNumbers?.forEach((qNum: number, idx: number) => {
-                                const correctAnswers = qSet.correctAnswers || [];
-                                if (correctAnswers[idx]) {
-                                    answerMap[qNum] = correctAnswers[idx];
-                                }
+                            qSet.correctAnswers?.forEach((ans: string) => {
+                                globalCounter++;
+                                answerMap[globalCounter] = ans;
                             });
                         });
                     }
@@ -513,9 +514,8 @@ const getAnswersForGrading = async (setType: SetType, setNumber: number) => {
                     // mcQuestions (multiple-choice-full)
                     if (group.mcQuestions) {
                         group.mcQuestions.forEach((mcQ: any) => {
-                            if (mcQ.questionNumber && mcQ.correctAnswer) {
-                                answerMap[mcQ.questionNumber] = mcQ.correctAnswer;
-                            }
+                            globalCounter++;
+                            answerMap[globalCounter] = mcQ.correctAnswer;
                         });
                     }
                 });
