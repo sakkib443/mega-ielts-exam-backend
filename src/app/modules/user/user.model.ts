@@ -24,7 +24,6 @@ const userSchema = new Schema<IUser>(
         },
         nid: {
             type: String,
-            required: [true, "NID is required"],
             trim: true,
         },
         password: {

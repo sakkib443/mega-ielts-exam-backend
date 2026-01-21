@@ -726,32 +726,31 @@ const updateQuestionSet = async (
     return updatedSet;
 };
 
-// Delete question set - NOW USES NEW COLLECTIONS
+// Delete question set - NOW SUPPORTS PERMANENT DELETION
 const deleteQuestionSet = async (id: string) => {
-    // Try to find and deactivate in new collections first
-    let result = await ListeningTest.findByIdAndUpdate(id, { isActive: false });
+    // Try to find and delete in new collections first
+    let result = await ListeningTest.findByIdAndDelete(id);
     if (result) {
-        return { message: "Listening test deactivated successfully" };
+        return { message: "Listening test deleted permanently" };
     }
 
-    result = await ReadingTest.findByIdAndUpdate(id, { isActive: false });
+    result = await ReadingTest.findByIdAndDelete(id);
     if (result) {
-        return { message: "Reading test deactivated successfully" };
+        return { message: "Reading test deleted permanently" };
     }
 
-    result = await WritingTest.findByIdAndUpdate(id, { isActive: false });
+    result = await WritingTest.findByIdAndDelete(id);
     if (result) {
-        return { message: "Writing test deactivated successfully" };
+        return { message: "Writing test deleted permanently" };
     }
 
     // Fallback to old collection
-    const set = await QuestionSet.findById(id);
-    if (!set) {
+    result = await QuestionSet.findByIdAndDelete(id);
+    if (!result) {
         throw new Error("Question set not found");
     }
 
-    await QuestionSet.findByIdAndUpdate(id, { isActive: false });
-    return { message: "Question set deactivated successfully" };
+    return { message: "Question set deleted permanently" };
 };
 
 // Toggle active status - NOW USES NEW COLLECTIONS

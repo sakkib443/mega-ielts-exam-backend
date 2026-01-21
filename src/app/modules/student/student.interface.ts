@@ -64,7 +64,7 @@ export interface IStudent {
     nameBengali?: string;
     email: string;
     phone: string;
-    nidNumber: string; // Voter ID / NID
+    nidNumber?: string; // Voter ID / NID
     photo?: string;
 
     // Auto-generated account credentials
@@ -140,7 +140,7 @@ export interface ICreateStudentInput {
     nameBengali?: string;
     email: string;
     phone: string;
-    nidNumber: string;
+    nidNumber?: string;
     photo?: string;
     paymentStatus: PaymentStatus;
     paymentAmount: number;

@@ -18,8 +18,9 @@ const createStudentSchema = z.object({
             .string({ message: "Phone number is required" })
             .regex(/^01[3-9]\d{8}$/, "Invalid Bangladesh phone number (e.g., 01712345678)"),
         nidNumber: z
-            .string({ message: "NID/Voter ID is required" })
-            .regex(/^\d{10}$|^\d{17}$/, "NID must be 10 or 17 digits"),
+            .string()
+            .regex(/^\d{10}$|^\d{17}$/, "NID must be 10 or 17 digits")
+            .optional(),
         photo: z.string().url("Photo must be a valid URL").optional(),
         paymentStatus: z.enum(["pending", "paid", "refunded"], {
             message: "Payment status is required",
@@ -56,6 +57,10 @@ const updateStudentSchema = z.object({
         phone: z
             .string()
             .regex(/^01[3-9]\d{8}$/, "Invalid Bangladesh phone number")
+            .optional(),
+        nidNumber: z
+            .string()
+            .regex(/^\d{10}$|^\d{17}$/, "NID must be 10 or 17 digits")
             .optional(),
         photo: z.string().url("Photo must be a valid URL").optional(),
         paymentStatus: z.enum(["pending", "paid", "refunded"]).optional(),

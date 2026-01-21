@@ -95,7 +95,6 @@ const studentSchema = new Schema<IStudent>(
         },
         nidNumber: {
             type: String,
-            required: [true, "NID/Voter ID is required"],
             trim: true,
         },
         photo: {
