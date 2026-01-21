@@ -968,76 +968,34 @@ const getAnswerSheet = async (studentId: string, module: string) => {
 
     // Get answers based on module type
     let answers: any;
+
     if (moduleName === 'writing') {
         // Writing returns an object with task1 and task2
         answers = student.examAnswers?.writing || { task1: '', task2: '' };
     } else {
-        // Listening and Reading - get saved answers
+        // Listening and Reading - directly return saved answers
+        // The saved answers already contain: questionNumber, questionText, studentAnswer, correctAnswer, isCorrect
         const savedAnswers = student.examAnswers?.[moduleName as 'listening' | 'reading'] || [];
 
-        // Create a map of saved answers by question number
-        const savedAnswerMap: Record<number, any> = {};
-        if (Array.isArray(savedAnswers)) {
-            savedAnswers.forEach((ans: any) => {
-                savedAnswerMap[Number(ans.questionNumber)] = ans;
-            });
-        }
-
-        // Get assigned set number
-        const setNumberKey = moduleName === 'listening' ? 'listeningSetNumber' : 'readingSetNumber';
-        const setNumber = student.assignedSets?.[setNumberKey as keyof typeof student.assignedSets];
-
-        if (setNumber) {
-            try {
-                // Fetch ALL questions from the question set
-                const setType = moduleName.toUpperCase() as "LISTENING" | "READING";
-                const questionData = await getQuestionTextsFromSet(setType, setNumber as number);
-
-                // Build complete answer list for all 40 questions
-                const allQuestionNumbers = Object.keys(questionData).map(Number).sort((a, b) => a - b);
-
-                answers = allQuestionNumbers.map(qNum => {
-                    const qData = questionData[qNum];
-                    const savedAns = savedAnswerMap[qNum];
-
-                    const studentAns = (savedAns?.studentAnswer || savedAns?.studentAnswerFull || "").toString().trim().toLowerCase();
-                    const correctAnswer = qData?.correctAnswer || "";
-
-                    // Calculate isCorrect
-                    let isCorrect = false;
-                    if (studentAns !== "" && correctAnswer) {
-                        if (Array.isArray(correctAnswer)) {
-                            isCorrect = correctAnswer.some(c => c.toString().trim().toLowerCase() === studentAns);
-                        } else {
-                            isCorrect = studentAns === correctAnswer.toString().trim().toLowerCase();
-                        }
-                    }
-
-                    return {
-                        questionNumber: qNum,
-                        questionText: qData?.questionText || `Question ${qNum}`,
-                        questionType: savedAns?.questionType || "fill-in-blank",
-                        studentAnswer: savedAns?.studentAnswer || "",
-                        studentAnswerFull: savedAns?.studentAnswerFull || savedAns?.studentAnswer || "",
-                        correctAnswer: Array.isArray(correctAnswer) ? correctAnswer[0] : correctAnswer,
-                        isCorrect: isCorrect
-                    };
-                });
-            } catch (err) {
-                console.error("Failed to fetch question texts:", err);
-                // Fallback to saved answers if fetch fails
-                answers = savedAnswers;
-            }
+        if (Array.isArray(savedAnswers) && savedAnswers.length > 0) {
+            // Sort by question number and return as-is
+            answers = savedAnswers
+                .map((ans: any) => ({
+                    questionNumber: ans.questionNumber,
+                    questionText: ans.questionText || `Question ${ans.questionNumber}`,
+                    questionType: ans.questionType || "fill-in-blank",
+                    studentAnswer: ans.studentAnswer || "",
+                    studentAnswerFull: ans.studentAnswerFull || ans.studentAnswer || "",
+                    correctAnswer: ans.correctAnswer || "",
+                    isCorrect: ans.isCorrect || false
+                }))
+                .sort((a: any, b: any) => a.questionNumber - b.questionNumber);
         } else {
-            // No assigned set, return saved answers as-is
-            answers = savedAnswers;
+            answers = [];
         }
     }
 
     console.log(`[getAnswerSheet] Module: ${moduleName}, Answers count:`, Array.isArray(answers) ? answers.length : 'writing');
-    if (Array.isArray(answers) && answers.length > 0) {
-        console.log(`[getAnswerSheet] Sample answer:`, JSON.stringify(answers[0], null, 2));
-    }
 
     return {
         student: {
@@ -1073,24 +1031,116 @@ const getQuestionTextsFromSet = async (setType: "LISTENING" | "READING", setNumb
         }
     } else if (setType === "READING") {
         const { ReadingTest } = await import("../reading/reading.model");
-        const test = await ReadingTest.findOne({ testNumber: setNumber })
-            .select("sections.questions.questionNumber sections.questions.questionText sections.questions.correctAnswer")
-            .lean();
+        const testDoc = await ReadingTest.findOne({ testNumber: setNumber }).lean();
+        const test = testDoc as any; // Cast to any to access dynamic properties
 
-        if (test?.sections) {
-            test.sections.forEach((section: any) => {
-                section.questions?.forEach((q: any) => {
+        console.log(`[getQuestionTextsFromSet] READING test found:`, !!test);
+        console.log(`[getQuestionTextsFromSet] Test keys:`, test ? Object.keys(test).filter((k: string) => !k.startsWith('_')) : []);
+
+        // Reading tests can have either 'sections' or 'passages' structure
+        const passagesOrSections = test?.passages || test?.sections;
+        console.log(`[getQuestionTextsFromSet] passagesOrSections count:`, passagesOrSections?.length || 0);
+
+        if (passagesOrSections) {
+            passagesOrSections.forEach((passage: any, pIdx: number) => {
+
+                // Check for questions directly on passage/section
+                passage.questions?.forEach((q: any) => {
                     questionData[q.questionNumber] = {
                         questionText: q.questionText || "",
                         correctAnswer: q.correctAnswer || ""
                     };
                 });
+
+                // For Reading tests, questions are typically inside questionGroups
+                passage.questionGroups?.forEach((group: any) => {
+                    // Questions are directly in questionGroups[].questions[] array
+                    group.questions?.forEach((q: any) => {
+                        questionData[q.questionNumber] = {
+                            questionText: q.questionText || "",
+                            correctAnswer: q.correctAnswer || ""
+                        };
+                    });
+
+                    // Also check for nested structures just in case
+                    // note-completion: notesSections with bullets
+                    if (group.notesSections) {
+                        group.notesSections.forEach((noteSection: any) => {
+                            noteSection.bullets?.forEach((bullet: any) => {
+                                if (bullet.questionNumber && bullet.type !== "context") {
+                                    questionData[bullet.questionNumber] = {
+                                        questionText: bullet.textBefore || group.mainInstruction || `Question ${bullet.questionNumber}`,
+                                        correctAnswer: bullet.correctAnswer || ""
+                                    };
+                                }
+                            });
+                        });
+                    }
+
+                    // statements array (true-false-not-given, yes-no-not-given)
+                    if (group.statements) {
+                        group.statements.forEach((stmt: any) => {
+                            questionData[stmt.questionNumber] = {
+                                questionText: stmt.text || `Question ${stmt.questionNumber}`,
+                                correctAnswer: stmt.correctAnswer || ""
+                            };
+                        });
+                    }
+
+                    // matchingItems array
+                    if (group.matchingItems) {
+                        group.matchingItems.forEach((item: any) => {
+                            questionData[item.questionNumber] = {
+                                questionText: item.text || `Question ${item.questionNumber}`,
+                                correctAnswer: item.correctAnswer || ""
+                            };
+                        });
+                    }
+
+                    // summarySegments
+                    if (group.summarySegments) {
+                        group.summarySegments.forEach((segment: any) => {
+                            if (segment.type === "blank" && segment.questionNumber) {
+                                questionData[segment.questionNumber] = {
+                                    questionText: segment.content || group.mainHeading || `Question ${segment.questionNumber}`,
+                                    correctAnswer: segment.correctAnswer || ""
+                                };
+                            }
+                        });
+                    }
+
+                    // questionSets (choose-two-letters)
+                    if (group.questionSets) {
+                        group.questionSets.forEach((qSet: any) => {
+                            qSet.questionNumbers?.forEach((qNum: number, idx: number) => {
+                                const correctAnswers = qSet.correctAnswers || [];
+                                questionData[qNum] = {
+                                    questionText: qSet.questionText || `Question ${qNum}`,
+                                    correctAnswer: correctAnswers[idx] || ""
+                                };
+                            });
+                        });
+                    }
+
+                    // mcQuestions (multiple-choice-full)
+                    if (group.mcQuestions) {
+                        group.mcQuestions.forEach((mcQ: any) => {
+                            questionData[mcQ.questionNumber] = {
+                                questionText: mcQ.questionText || `Question ${mcQ.questionNumber}`,
+                                correctAnswer: mcQ.correctAnswer || ""
+                            };
+                        });
+                    }
+                });
             });
         }
     }
 
+    console.log(`[getQuestionTextsFromSet] ${setType} Set ${setNumber}: Found ${Object.keys(questionData).length} questions`);
     return questionData;
 };
+
+
 
 // Update all scores at once (admin) - for comprehensive score editing
 const updateAllScores = async (
