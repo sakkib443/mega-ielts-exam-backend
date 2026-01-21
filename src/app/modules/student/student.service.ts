@@ -972,54 +972,65 @@ const getAnswerSheet = async (studentId: string, module: string) => {
         // Writing returns an object with task1 and task2
         answers = student.examAnswers?.writing || { task1: '', task2: '' };
     } else {
-        // Listening and Reading return arrays
-        answers = student.examAnswers?.[moduleName as 'listening' | 'reading'] || [];
+        // Listening and Reading - get saved answers
+        const savedAnswers = student.examAnswers?.[moduleName as 'listening' | 'reading'] || [];
 
-        // If answers exist but questionText is missing, try to fetch from Question Set
-        if (Array.isArray(answers) && answers.length > 0) {
-            const firstAnswer = answers[0];
-            // Check if questionText is missing or empty
-            if (!firstAnswer.questionText || firstAnswer.questionText === "") {
-                try {
-                    // Get assigned set number
-                    const setNumberKey = moduleName === 'listening' ? 'listeningSetNumber' : 'readingSetNumber';
-                    const setNumber = student.assignedSets?.[setNumberKey as keyof typeof student.assignedSets];
+        // Create a map of saved answers by question number
+        const savedAnswerMap: Record<number, any> = {};
+        if (Array.isArray(savedAnswers)) {
+            savedAnswers.forEach((ans: any) => {
+                savedAnswerMap[Number(ans.questionNumber)] = ans;
+            });
+        }
 
-                    if (setNumber) {
-                        // Fetch question texts from the question set
-                        const setType = moduleName.toUpperCase() as "LISTENING" | "READING";
-                        const questionData = await getQuestionTextsFromSet(setType, setNumber as number);
+        // Get assigned set number
+        const setNumberKey = moduleName === 'listening' ? 'listeningSetNumber' : 'readingSetNumber';
+        const setNumber = student.assignedSets?.[setNumberKey as keyof typeof student.assignedSets];
 
-                        // Merge questionText, correctAnswer and RECALCULATE isCorrect for display accuracy
-                        answers = answers.map((ans: any) => {
-                            const qNum = Number(ans.questionNumber);
-                            const qData = questionData[qNum];
-                            const studentAns = (ans.studentAnswer || ans.studentAnswerFull || "").toString().trim().toLowerCase();
-                            const correctAnswers = qData?.correctAnswer;
+        if (setNumber) {
+            try {
+                // Fetch ALL questions from the question set
+                const setType = moduleName.toUpperCase() as "LISTENING" | "READING";
+                const questionData = await getQuestionTextsFromSet(setType, setNumber as number);
 
-                            let isCorrect = ans.isCorrect;
-                            if (studentAns !== "" && correctAnswers) {
-                                if (Array.isArray(correctAnswers)) {
-                                    isCorrect = correctAnswers.some(c => c.toString().trim().toLowerCase() === studentAns);
-                                } else {
-                                    isCorrect = studentAns === correctAnswers.toString().trim().toLowerCase();
-                                }
-                            }
+                // Build complete answer list for all 40 questions
+                const allQuestionNumbers = Object.keys(questionData).map(Number).sort((a, b) => a - b);
 
-                            return {
-                                ...ans,
-                                questionText: qData?.questionText || `Question ${ans.questionNumber}`,
-                                correctAnswer: ans.correctAnswer || (Array.isArray(correctAnswers) ? correctAnswers[0] : correctAnswers) || "",
-                                studentAnswer: ans.studentAnswer || "",
-                                studentAnswerFull: ans.studentAnswerFull || ans.studentAnswer || "",
-                                isCorrect: isCorrect
-                            };
-                        });
+                answers = allQuestionNumbers.map(qNum => {
+                    const qData = questionData[qNum];
+                    const savedAns = savedAnswerMap[qNum];
+
+                    const studentAns = (savedAns?.studentAnswer || savedAns?.studentAnswerFull || "").toString().trim().toLowerCase();
+                    const correctAnswer = qData?.correctAnswer || "";
+
+                    // Calculate isCorrect
+                    let isCorrect = false;
+                    if (studentAns !== "" && correctAnswer) {
+                        if (Array.isArray(correctAnswer)) {
+                            isCorrect = correctAnswer.some(c => c.toString().trim().toLowerCase() === studentAns);
+                        } else {
+                            isCorrect = studentAns === correctAnswer.toString().trim().toLowerCase();
+                        }
                     }
-                } catch (err) {
-                    console.error("Failed to fetch question texts:", err);
-                }
+
+                    return {
+                        questionNumber: qNum,
+                        questionText: qData?.questionText || `Question ${qNum}`,
+                        questionType: savedAns?.questionType || "fill-in-blank",
+                        studentAnswer: savedAns?.studentAnswer || "",
+                        studentAnswerFull: savedAns?.studentAnswerFull || savedAns?.studentAnswer || "",
+                        correctAnswer: Array.isArray(correctAnswer) ? correctAnswer[0] : correctAnswer,
+                        isCorrect: isCorrect
+                    };
+                });
+            } catch (err) {
+                console.error("Failed to fetch question texts:", err);
+                // Fallback to saved answers if fetch fails
+                answers = savedAnswers;
             }
+        } else {
+            // No assigned set, return saved answers as-is
+            answers = savedAnswers;
         }
     }
 
