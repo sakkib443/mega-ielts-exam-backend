@@ -807,10 +807,11 @@ const getSetSummary = async (setType: SetType) => {
 
     if (setType === "LISTENING") {
         const tests = await ListeningTest.find({ isActive: true })
-            .select("testId testNumber title difficulty usageCount")
+            .select("_id testId testNumber title difficulty usageCount")
             .sort({ testNumber: 1 })
             .lean();
         sets = tests.map(t => ({
+            _id: t._id,
             setId: t.testId,
             setNumber: t.testNumber,
             title: t.title,
@@ -819,10 +820,11 @@ const getSetSummary = async (setType: SetType) => {
         }));
     } else if (setType === "READING") {
         const tests = await ReadingTest.find({ isActive: true })
-            .select("testId testNumber title difficulty usageCount")
+            .select("_id testId testNumber title difficulty usageCount")
             .sort({ testNumber: 1 })
             .lean();
         sets = tests.map(t => ({
+            _id: t._id,
             setId: t.testId,
             setNumber: t.testNumber,
             title: t.title,
@@ -831,10 +833,11 @@ const getSetSummary = async (setType: SetType) => {
         }));
     } else if (setType === "WRITING") {
         const tests = await WritingTest.find({ isActive: true })
-            .select("testId testNumber title difficulty usageCount")
+            .select("_id testId testNumber title difficulty usageCount")
             .sort({ testNumber: 1 })
             .lean();
         sets = tests.map(t => ({
+            _id: t._id,
             setId: t.testId,
             setNumber: t.testNumber,
             title: t.title,
