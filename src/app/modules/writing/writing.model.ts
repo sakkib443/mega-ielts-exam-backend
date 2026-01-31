@@ -32,12 +32,12 @@ const WritingTaskSchema = new Schema<IWritingTask>({
     taskNumber: { type: Number, required: true, enum: [1, 2] },
     taskType: {
         type: String,
-        required: true,
+        required: false,
         enum: ["task1-academic", "task1-gt", "task2"]
     },
     subType: {
         type: String,
-        required: true,
+        required: false,
         enum: [
             // Task 1 Academic
             "line-graph", "bar-chart", "pie-chart", "table",
@@ -51,10 +51,10 @@ const WritingTaskSchema = new Schema<IWritingTask>({
             "two-part-question", "direct-question"
         ]
     },
-    prompt: { type: String, required: true },
-    instructions: { type: String, required: true },
-    minWords: { type: Number, required: true },
-    recommendedTime: { type: Number, required: true },
+    prompt: { type: String, required: false },
+    instructions: { type: String, required: false },
+    minWords: { type: Number, required: false },
+    recommendedTime: { type: Number, required: false },
     images: [ImageSchema],
     letterContext: LetterContextSchema,
     keyPoints: [{ type: String }],

@@ -970,8 +970,29 @@ const getAnswerSheet = async (studentId: string, module: string) => {
     let answers: any;
 
     if (moduleName === 'writing') {
-        // Writing returns an object with task1 and task2
-        answers = student.examAnswers?.writing || { task1: '', task2: '' };
+        const studentAnswers = student.examAnswers?.writing || { task1: '', task2: '' };
+
+        // Fetch writing question details
+        let questions: any = { task1: null, task2: null };
+        try {
+            const writingSetNumber = student.assignedSets?.writingSetNumber;
+            if (writingSetNumber) {
+                const { WritingTest } = await import("../writing/writing.model");
+                const test = await WritingTest.findOne({ testNumber: writingSetNumber }).lean();
+                if (test && test.tasks) {
+                    const task1 = test.tasks.find(t => t.taskNumber === 1);
+                    const task2 = test.tasks.find(t => t.taskNumber === 2);
+                    questions = { task1, task2 };
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch writing question details:", err);
+        }
+
+        answers = {
+            ...studentAnswers,
+            questions
+        };
     } else {
         // Listening and Reading - directly return saved answers
         // The saved answers already contain: questionNumber, questionText, studentAnswer, correctAnswer, isCorrect

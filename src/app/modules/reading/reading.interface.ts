@@ -22,20 +22,25 @@ import { Types } from "mongoose";
 export type ReadingQuestionType =
     | "multiple-choice"
     | "multiple-choice-multi"
+    | "multiple-choice-full"
     | "true-false-not-given"
     | "yes-no-not-given"
+    | "matching"
     | "matching-information"
     | "matching-headings"
     | "matching-features"
     | "matching-sentence-endings"
     | "sentence-completion"
     | "summary-completion"
-    | "summary-completion-wordlist"  // Summary with word list
+    | "summary-completion-wordlist"
+    | "summary-with-options"
     | "note-completion"
     | "table-completion"
     | "flow-chart-completion"
     | "diagram-labeling"
-    | "short-answer";
+    | "fill-in-blank"
+    | "short-answer"
+    | "choose-two-letters";
 
 // Individual reading question
 export interface IReadingQuestion {

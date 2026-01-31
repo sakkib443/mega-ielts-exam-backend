@@ -6,7 +6,7 @@ const ListeningQuestionSchema = new Schema<IListeningQuestion>({
     questionNumber: { type: Number, required: true },
     questionType: {
         type: String,
-        required: true,
+        required: false,
         enum: [
             "multiple-choice",
             "multiple-choice-multi",
@@ -22,9 +22,9 @@ const ListeningQuestionSchema = new Schema<IListeningQuestion>({
             "short-answer"
         ]
     },
-    questionText: { type: String, required: true },
+    questionText: { type: String, required: false },
     options: [{ type: String }],
-    correctAnswer: { type: Schema.Types.Mixed, required: true }, // String or String[]
+    correctAnswer: { type: Schema.Types.Mixed, required: false }, // String or String[]
     acceptableAnswers: [{ type: String }],
     audioTimestamp: { type: String },
     imageUrl: { type: String },
@@ -37,9 +37,9 @@ const ListeningQuestionSchema = new Schema<IListeningQuestion>({
 const ListeningSectionSchema = new Schema<IListeningSection>({
     sectionNumber: { type: Number, required: true, min: 1, max: 4 },
     title: { type: String, required: true },
-    context: { type: String, required: true },
+    context: { type: String, default: "" },
     audioUrl: { type: String },
-    instructions: { type: String, required: true },
+    instructions: { type: String, default: "" },
     passage: { type: String },
     imageUrl: { type: String },
     questions: [ListeningQuestionSchema]

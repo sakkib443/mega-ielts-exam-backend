@@ -6,33 +6,36 @@ const ReadingQuestionSchema = new Schema<IReadingQuestion>({
     questionNumber: { type: Number, required: true },
     questionType: {
         type: String,
-        required: true,
+        required: false,
         enum: [
             "multiple-choice",
             "multiple-choice-multi",
+            "multiple-choice-full",
             "true-false-not-given",
             "yes-no-not-given",
+            "matching",
             "matching-information",
             "matching-headings",
             "matching-features",
             "matching-sentence-endings",
-            "matching",  // Generic matching
             "sentence-completion",
             "summary-completion",
             "summary-completion-wordlist",
+            "summary-with-options",
             "note-completion",
             "table-completion",
             "flow-chart-completion",
             "diagram-labeling",
-            "fill-in-blank",  // Generic fill in blank
-            "short-answer"
+            "fill-in-blank",
+            "short-answer",
+            "choose-two-letters"
         ]
     },
-    questionText: { type: String, required: true },
+    questionText: { type: String, required: false },
     options: [{ type: String }],
     headingsList: [{ type: String }],
     wordList: [{ type: String }],
-    correctAnswer: { type: Schema.Types.Mixed, required: true },
+    correctAnswer: { type: Schema.Types.Mixed, required: false },
     acceptableAnswers: [{ type: String }],
     wordLimit: { type: Number },
     paragraphRef: { type: String },
@@ -53,38 +56,38 @@ const BulletSchema = new Schema({
 }, { _id: false });
 
 const NotesSectionSchema = new Schema({
-    subHeading: { type: String, required: true },
+    subHeading: { type: String, required: false },
     bullets: [BulletSchema]
 }, { _id: false });
 
 const StatementSchema = new Schema({
-    questionNumber: { type: Number, required: true },
-    text: { type: String, required: true },
-    correctAnswer: { type: String, required: true }
+    questionNumber: { type: Number, required: false },
+    text: { type: String, required: false },
+    correctAnswer: { type: String, required: false }
 }, { _id: false });
 
 const OptionsExplanationSchema = new Schema({
-    label: { type: String, required: true },
-    description: { type: String, required: true }
+    label: { type: String, required: false },
+    description: { type: String, required: false }
 }, { _id: false });
 
 const MatchingItemSchema = new Schema({
-    questionNumber: { type: Number, required: true },
-    text: { type: String, required: true },
-    correctAnswer: { type: String, required: true }
+    questionNumber: { type: Number, required: false },
+    text: { type: String, required: false },
+    correctAnswer: { type: String, required: false }
 }, { _id: false });
 
 const SummarySegmentSchema = new Schema({
-    type: { type: String, enum: ["text", "blank"], required: true },
+    type: { type: String, enum: ["text", "blank"], required: false },
     content: { type: String }, // For text segments
     questionNumber: { type: Number }, // For blank segments
     correctAnswer: { type: String }
 }, { _id: false });
 
 const QuestionGroupSchema = new Schema({
-    groupType: { type: String, required: true }, // "note-completion", "true-false-not-given", "matching-information", "summary-completion", etc.
-    startQuestion: { type: Number, required: true },
-    endQuestion: { type: Number, required: true },
+    groupType: { type: String, required: false }, // "note-completion", "true-false-not-given", "matching-information", "summary-completion", etc.
+    startQuestion: { type: Number, required: false },
+    endQuestion: { type: Number, required: false },
     mainInstruction: { type: String },
     subInstruction: { type: String },
     mainHeading: { type: String },
@@ -144,7 +147,7 @@ const ReadingSectionSchema = new Schema<IReadingSection>({
     passage: { type: String, required: true },
     passageSource: { type: String },
     paragraphs: [ParagraphSchema],
-    instructions: { type: String, required: true },
+    instructions: { type: String, default: "" },
     imageUrl: { type: String },
     questions: [ReadingQuestionSchema],
     questionGroups: [QuestionGroupSchema]
