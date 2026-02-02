@@ -72,7 +72,32 @@ const login = async (credentials: ILoginCredentials) => {
     };
 };
 
+const changePassword = async (userId: string, currentPassword: string, newPassword: string) => {
+    // Find user with password field
+    const user = await User.findById(userId).select("+password");
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordValid) {
+        throw new Error("Current password is incorrect");
+    }
+
+    // Hash new password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password
+    user.password = hashedPassword;
+    await user.save();
+
+    return { message: "Password changed successfully" };
+};
+
 export const AuthService = {
     register,
     login,
+    changePassword,
 };

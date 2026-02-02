@@ -25,7 +25,31 @@ const login = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const changePassword = catchAsync(async (req: Request, res: Response) => {
+    const userId = (req as any).user?.id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+        return sendResponse(res, {
+            statusCode: 400,
+            success: false,
+            message: "Current password and new password are required",
+            data: null,
+        });
+    }
+
+    const result = await AuthService.changePassword(userId, currentPassword, newPassword);
+
+    sendResponse(res, {
+        statusCode: 200,
+        success: true,
+        message: result.message,
+        data: null,
+    });
+});
+
 export const AuthController = {
     register,
     login,
+    changePassword,
 };
