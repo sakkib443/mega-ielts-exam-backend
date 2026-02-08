@@ -3,9 +3,40 @@ import { StudentController } from "./student.controller";
 import { auth, authorize } from "../../middlewares/auth";
 import validateRequest from "../../middlewares/validateRequest";
 import { StudentValidation } from "./student.validation";
+import { EmailService } from "../../utils/email.service";
 // Routes updated with resetModule
 
 const router = Router();
+
+// ============ TEST EMAIL ROUTE (Remove in production) ============
+router.get("/test-email", async (req, res) => {
+    try {
+        const testEmail = req.query.email as string || "test@example.com";
+        console.log("Testing email to:", testEmail);
+        console.log("EMAIL_USER:", process.env.EMAIL_USER);
+        console.log("EMAIL_PASS:", process.env.EMAIL_PASS ? "SET" : "NOT SET");
+        console.log("FRONTEND_URL:", process.env.FRONTEND_URL);
+
+        const result = await EmailService.sendStudentRegistrationEmail({
+            studentName: "Test Student",
+            examId: "TEST12345",
+            email: testEmail,
+            password: "testpass123",
+            examDate: new Date(),
+        });
+
+        console.log("Email result:", result);
+        res.json({
+            success: result.success,
+            message: result.success ? "Email sent successfully!" : "Email failed",
+            result
+        });
+    } catch (error: any) {
+        console.error("Test email error:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 
 // ============ PUBLIC ROUTES (For Exam Entry) ============
 
