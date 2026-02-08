@@ -4,6 +4,7 @@ import { ICreateStudentInput, IStudentFilters, ExamStatus } from "./student.inte
 import { Types } from "mongoose";
 import { QuestionSetService } from "../questionSet/questionSet.service";
 import { AutoMarkingService } from "../examSession/autoMarking.service";
+import { EmailService } from "../../utils/email.service";
 // Updated: questionText + isCorrect recalculation on backend v2
 
 // Generate unique exam ID
@@ -81,6 +82,15 @@ const createStudent = async (
         student.userId = user._id as Types.ObjectId;
         await student.save();
     }
+
+    // Send registration email to student (async, don't wait)
+    EmailService.sendStudentRegistrationEmail({
+        studentName: data.nameEnglish,
+        examId: student.examId,
+        email: data.email,
+        password: autoPassword,
+        examDate: student.examDate,
+    }).catch(err => console.error("Failed to send registration email:", err));
 
     return {
         student: {
@@ -1340,6 +1350,21 @@ const publishResults = async (studentId: string, publish: boolean = true) => {
     }
 
     await student.save();
+
+    // Send result published email to student (only when publishing, not unpublishing)
+    if (publish && student.email) {
+        const scores = student.scores || {} as any;
+        EmailService.sendResultPublishedEmail({
+            studentName: student.nameEnglish,
+            examId: student.examId,
+            email: student.email,
+            listeningBand: scores.listening?.band || 0,
+            readingBand: scores.reading?.band || 0,
+            writingBand: scores.writing?.overallBand || 0,
+            overallBand: scores.overall || 0,
+            examDate: student.examDate,
+        }).catch(err => console.error("Failed to send result email:", err));
+    }
 
     return {
         _id: student._id,
