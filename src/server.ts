@@ -1,18 +1,25 @@
-import mongoose from "mongoose";
 import dotenv from "dotenv";
 import app from "./app";
+import { connectDB } from "./app/config/db";
 
 dotenv.config();
 
-async function main() {
-  try {
-    await mongoose.connect(process.env.DATABASE_URL as string);
-    app.listen(process.env.PORT, () => {
-      console.log(`Server is running on port ${process.env.PORT}`);
-    });
-  } catch (error) {
-    console.error("Failed to connect to DB", error);
-  }
-}
+// For Vercel serverless: export app directly
+export default app;
 
-main();
+// For local development
+if (process.env.NODE_ENV !== "production") {
+  const startServer = async () => {
+    try {
+      await connectDB();
+      const PORT = process.env.PORT || 5000;
+      app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+      });
+    } catch (error) {
+      console.error("Failed to start server:", error);
+      process.exit(1);
+    }
+  };
+  startServer();
+}

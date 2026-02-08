@@ -1,13 +1,24 @@
-import express, { Application, Request, Response } from "express";
+import express, { Application, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import router from "./app/routes";
 import globalErrorHandler from "./app/middlewares/globalErrorHandler";
+import { ensureDbConnection } from "./app/config/db";
 
 const app: Application = express();
 
 // middleware
 app.use(express.json());
 app.use(cors());
+
+// Ensure DB connection before processing requests (for Vercel serverless)
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await ensureDbConnection();
+    next();
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Database connection failed" });
+  }
+});
 
 // API routes
 app.use("/api", router);
