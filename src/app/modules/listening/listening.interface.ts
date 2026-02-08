@@ -31,32 +31,19 @@ export type ListeningQuestionType =
 
 // Individual listening question
 export interface IListeningQuestion {
-    questionNumber: number;
-    questionType: ListeningQuestionType;
-    questionText: string;
+    blockType?: "question" | "instruction"; // default: "question"
+    content?: string; // for instruction blocks (HTML/Rich-text)
 
-    // For multiple choice questions
+    questionNumber?: number; // optional for instructions
+    questionType?: ListeningQuestionType;
+    questionText?: string;
     options?: string[];
-
-    // Correct answer(s) - can be string or array for multi-select
-    correctAnswer: string | string[];
-
-    // Alternative acceptable answers
+    correctAnswer?: string | string[];
     acceptableAnswers?: string[];
-
-    // Audio timestamp for this question (e.g., "02:35")
     audioTimestamp?: string;
-
-    // Image URL for diagram/map labeling
     imageUrl?: string;
-
-    // Word limit for completion questions
     wordLimit?: number;
-
-    // Marks for this question
-    marks: number;
-
-    // Explanation for correct answer
+    marks?: number;
     explanation?: string;
 }
 

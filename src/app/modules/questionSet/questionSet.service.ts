@@ -7,19 +7,101 @@ import {
 import { Types } from "mongoose";
 
 // Import new separate collections
-import { ListeningTest } from "../listening/listening.model";
-import { ReadingTest } from "../reading/reading.model";
-import { WritingTest } from "../writing/writing.model";
+import { ListeningTest, generateListeningTestId } from "../listening/listening.model";
+import { ReadingTest, generateReadingTestId } from "../reading/reading.model";
+import { WritingTest, generateWritingTestId } from "../writing/writing.model";
 
 
 const createQuestionSet = async (
     data: ICreateQuestionSetInput,
     adminId: string
 ) => {
-    // Generate set ID and number
+    let result;
+
+    // Choose the correct collection based on setType
+    if (data.setType === "LISTENING") {
+        const { testId, testNumber } = await generateListeningTestId();
+
+        // Calculate totals
+        let totalQuestions = 0;
+        let totalMarks = 0;
+        data.sections?.forEach((section) => {
+            totalQuestions += section.questions?.length || 0;
+            section.questions?.forEach((q) => {
+                totalMarks += q.marks || 1;
+            });
+        });
+
+        result = await ListeningTest.create({
+            ...data,
+            testId,
+            testNumber,
+            totalQuestions,
+            totalMarks,
+            createdBy: new Types.ObjectId(adminId),
+        });
+
+        return {
+            ...result.toObject(),
+            setId: result.testId,
+            setNumber: result.testNumber,
+            setType: "LISTENING",
+        };
+    } else if (data.setType === "READING") {
+        const { testId, testNumber } = await generateReadingTestId();
+
+        // Calculate totals
+        let totalQuestions = 0;
+        let totalMarks = 0;
+        data.sections?.forEach((section) => {
+            totalQuestions += section.questions?.length || 0;
+            section.questions?.forEach((q) => {
+                totalMarks += q.marks || 1;
+            });
+        });
+
+        result = await ReadingTest.create({
+            ...data,
+            testId,
+            testNumber,
+            totalQuestions,
+            totalMarks,
+            createdBy: new Types.ObjectId(adminId),
+        });
+
+        return {
+            ...result.toObject(),
+            setId: result.testId,
+            setNumber: result.testNumber,
+            setType: "READING",
+        };
+    } else if (data.setType === "WRITING") {
+        const { testId, testNumber } = await generateWritingTestId();
+
+        result = await WritingTest.create({
+            ...data,
+            testId,
+            testNumber,
+            tasks: data.writingTasks?.map(t => ({
+                ...t,
+                taskType: t.taskType || (t.taskNumber === 1 ? "task1-academic" : "task2"),
+                subType: t.subType || (t.taskNumber === 1 ? "line-graph" : "opinion"),
+            })),
+            totalTasks: data.writingTasks?.length || 2,
+            createdBy: new Types.ObjectId(adminId),
+        });
+
+        return {
+            ...result.toObject(),
+            setId: result.testId,
+            setNumber: result.testNumber,
+            setType: "WRITING",
+        };
+    }
+
+    // Fallback to old collection (should rarely happen now)
     const { setId, setNumber } = await generateSetId(data.setType);
 
-    // Calculate total questions
     let totalQuestions = 0;
     let totalMarks = 0;
 
@@ -32,7 +114,7 @@ const createQuestionSet = async (
         });
     } else if (data.writingTasks && data.writingTasks.length > 0) {
         totalQuestions = data.writingTasks.length;
-        totalMarks = 18; // Writing is scored differently
+        totalMarks = 18;
     }
 
     const questionSet = await QuestionSet.create({
@@ -47,7 +129,7 @@ const createQuestionSet = async (
     return questionSet;
 };
 
-// Get all question sets with filters - NOW USES NEW COLLECTIONS
+// Get all question sets with filters - NOW USES NEW COLLECTIONS + LEGACY FALLBACK
 const getAllQuestionSets = async (
     filters: IQuestionSetFilters,
     page: number = 1,
@@ -55,7 +137,6 @@ const getAllQuestionSets = async (
 ) => {
     const skip = (page - 1) * limit;
 
-    // Helper to build query for each collection
     const buildQuery = (isActive?: boolean, difficulty?: string, searchTerm?: string) => {
         const q: Record<string, unknown> = {};
         if (typeof isActive === "boolean") q.isActive = isActive;
@@ -64,12 +145,12 @@ const getAllQuestionSets = async (
             q.$or = [
                 { title: { $regex: searchTerm, $options: "i" } },
                 { testId: { $regex: searchTerm, $options: "i" } },
+                { setId: { $regex: searchTerm, $options: "i" } },
             ];
         }
         return q;
     };
 
-    // If filtering by specific type, only query that collection
     if (filters.setType) {
         const query = buildQuery(filters.isActive, filters.difficulty, filters.searchTerm);
 
@@ -77,58 +158,48 @@ const getAllQuestionSets = async (
         let total = 0;
 
         if (filters.setType === "LISTENING") {
-            [sets, total] = await Promise.all([
-                ListeningTest.find(query)
-                    .select("-sections.questions.correctAnswer")
-                    .sort({ testNumber: 1 })
-                    .skip(skip)
-                    .limit(limit)
-                    .lean(),
+            const [newSets, newTotal, oldSets] = await Promise.all([
+                ListeningTest.find(query).select("-sections.questions.correctAnswer").sort({ testNumber: 1 }).lean(),
                 ListeningTest.countDocuments(query),
+                QuestionSet.find({ ...query, setType: "LISTENING" }).select("-sections.questions.correctAnswer").lean()
             ]);
-            // Map to old format
-            sets = sets.map(s => ({
-                ...s,
-                setId: s.testId,
-                setNumber: s.testNumber,
-                setType: "LISTENING",
-            }));
+
+            sets = [
+                ...newSets.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "LISTENING" })),
+                ...oldSets
+            ];
+            total = newTotal + oldSets.length;
         } else if (filters.setType === "READING") {
-            [sets, total] = await Promise.all([
-                ReadingTest.find(query)
-                    .select("-passages.questionGroups.questions.correctAnswer")
-                    .sort({ testNumber: 1 })
-                    .skip(skip)
-                    .limit(limit)
-                    .lean(),
+            const [newSets, newTotal, oldSets] = await Promise.all([
+                ReadingTest.find(query).select("-sections.questions.correctAnswer").sort({ testNumber: 1 }).lean(),
                 ReadingTest.countDocuments(query),
+                QuestionSet.find({ ...query, setType: "READING" }).select("-sections.questions.correctAnswer").lean()
             ]);
-            sets = sets.map(s => ({
-                ...s,
-                setId: s.testId,
-                setNumber: s.testNumber,
-                setType: "READING",
-            }));
+
+            sets = [
+                ...newSets.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "READING" })),
+                ...oldSets
+            ];
+            total = newTotal + oldSets.length;
         } else if (filters.setType === "WRITING") {
-            [sets, total] = await Promise.all([
-                WritingTest.find(query)
-                    .select("-tasks.sampleAnswer")
-                    .sort({ testNumber: 1 })
-                    .skip(skip)
-                    .limit(limit)
-                    .lean(),
+            const [newSets, newTotal, oldSets] = await Promise.all([
+                WritingTest.find(query).select("-tasks.sampleAnswer").sort({ testNumber: 1 }).lean(),
                 WritingTest.countDocuments(query),
+                QuestionSet.find({ ...query, setType: "WRITING" }).select("-writingTasks.sampleAnswer").lean()
             ]);
-            sets = sets.map(s => ({
-                ...s,
-                setId: s.testId,
-                setNumber: s.testNumber,
-                setType: "WRITING",
-            }));
+
+            sets = [
+                ...newSets.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "WRITING" })),
+                ...oldSets
+            ];
+            total = newTotal + oldSets.length;
         }
 
+        // Apply manual pagination since we combined two sources
+        const paginatedSets = sets.slice(skip, skip + limit);
+
         return {
-            sets,
+            sets: paginatedSets,
             pagination: {
                 page,
                 limit,
@@ -138,54 +209,28 @@ const getAllQuestionSets = async (
         };
     }
 
-    // If no type filter, get counts from all new collections
     const query = buildQuery(filters.isActive, filters.difficulty, filters.searchTerm);
 
-    // Get all from each collection
-    const [listeningTests, readingTests, writingTests] = await Promise.all([
-        ListeningTest.find(query)
-            .select("-sections.questions.correctAnswer")
-            .sort({ testNumber: 1 })
-            .lean(),
-        ReadingTest.find(query)
-            .select("-passages.questionGroups.questions.correctAnswer")
-            .sort({ testNumber: 1 })
-            .lean(),
-        WritingTest.find(query)
-            .select("-tasks.sampleAnswer")
-            .sort({ testNumber: 1 })
-            .lean(),
+    const [listeningTests, readingTests, writingTests, legacySets] = await Promise.all([
+        ListeningTest.find(query).select("-sections.questions.correctAnswer").sort({ testNumber: 1 }).lean(),
+        ReadingTest.find(query).select("-sections.questions.correctAnswer").sort({ testNumber: 1 }).lean(),
+        WritingTest.find(query).select("-tasks.sampleAnswer").sort({ testNumber: 1 }).lean(),
+        QuestionSet.find(query).lean()
     ]);
 
-    // Map to old format and combine
     const allSets = [
-        ...listeningTests.map(s => ({
-            ...s,
-            setId: s.testId,
-            setNumber: s.testNumber,
-            setType: "LISTENING" as const,
-        })),
-        ...readingTests.map(s => ({
-            ...s,
-            setId: s.testId,
-            setNumber: s.testNumber,
-            setType: "READING" as const,
-        })),
-        ...writingTests.map(s => ({
-            ...s,
-            setId: s.testId,
-            setNumber: s.testNumber,
-            setType: "WRITING" as const,
-        })),
+        ...listeningTests.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "LISTENING" as const })),
+        ...readingTests.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "READING" as const })),
+        ...writingTests.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "WRITING" as const })),
+        ...legacySets
     ];
 
-    // Sort by setType then setNumber
     allSets.sort((a, b) => {
         const typeOrder = { LISTENING: 1, READING: 2, WRITING: 3 };
         if (typeOrder[a.setType] !== typeOrder[b.setType]) {
             return typeOrder[a.setType] - typeOrder[b.setType];
         }
-        return a.setNumber - b.setNumber;
+        return (a.setNumber || a.testNumber) - (b.setNumber || b.testNumber);
     });
 
     const total = allSets.length;

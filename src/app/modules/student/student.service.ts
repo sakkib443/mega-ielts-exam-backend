@@ -3,6 +3,7 @@ import { User } from "../user/user.model";
 import { ICreateStudentInput, IStudentFilters, ExamStatus } from "./student.interface";
 import { Types } from "mongoose";
 import { QuestionSetService } from "../questionSet/questionSet.service";
+import { AutoMarkingService } from "../examSession/autoMarking.service";
 // Updated: questionText + isCorrect recalculation on backend v2
 
 // Generate unique exam ID
@@ -600,72 +601,17 @@ const saveModuleScore = async (
                     // Merge correct answers with student answers and RECALCULATE isCorrect
                     let correctCount = 0;
                     const answersWithCorrect = scoreData.answers.map((ans: any) => {
-                        const studentAns = (ans.studentAnswer || ans.studentAnswerFull || "").toString().trim().toLowerCase();
+                        const studentAns = AutoMarkingService.normalizeAnswer(ans.studentAnswer || ans.studentAnswerFull || "");
                         const correctAnswers = correctAnswerMap[Number(ans.questionNumber)];
 
                         let isCorrect = false;
                         let canonicalCorrect = "";
 
                         if (Array.isArray(correctAnswers)) {
-                            isCorrect = studentAns !== "" && correctAnswers.some(c => c.toString().trim().toLowerCase() === studentAns);
+                            isCorrect = studentAns !== "" && correctAnswers.some(c => AutoMarkingService.normalizeAnswer(c) === studentAns);
                             canonicalCorrect = correctAnswers[0]?.toString() || "";
                         } else {
-                            const correctAns = (correctAnswers || "").toString().trim().toLowerCase();
-                            isCorrect = studentAns !== "" && studentAns === correctAns;
-                            canonicalCorrect = correctAnswers?.toString() || "";
-                        }
-
-                        if (isCorrect) correctCount++;
-
-                        return {
-                            questionNumber: ans.questionNumber,
-                            questionText: ans.questionText || "",
-                            questionType: ans.questionType || "fill-in-blank",
-                            studentAnswer: ans.studentAnswer || "", // The extracted letter or short answer
-                            studentAnswerFull: ans.studentAnswerFull || ans.studentAnswer || "", // Full answer for reference
-                            correctAnswer: canonicalCorrect || ans.correctAnswer || "",
-                            isCorrect: isCorrect
-                        };
-                    });
-                    updateObj["examAnswers.listening"] = answersWithCorrect;
-                    // Update correct answers count in score
-                    updateObj["scores.listening"].correctAnswers = correctCount;
-                    updateObj["scores.listening"].raw = correctCount;
-                } else {
-                    updateObj["examAnswers.listening"] = scoreData.answers;
-                }
-            } catch (err) {
-                console.error("Failed to fetch correct answers for listening:", err);
-                updateObj["examAnswers.listening"] = scoreData.answers;
-            }
-        }
-    } else if (module === "reading") {
-        updateObj["scores.reading"] = {
-            raw: scoreData.score || 0,
-            band: scoreData.band,
-            correctAnswers: scoreData.score || 0,
-            totalQuestions: scoreData.total || 40,
-        };
-        if (scoreData.answers && Array.isArray(scoreData.answers)) {
-            // Fetch correct answers from question set
-            try {
-                const readingSetNumber = student.assignedSets?.readingSetNumber;
-                if (readingSetNumber) {
-                    const correctAnswerMap = await QuestionSetService.getAnswersForGrading("READING", readingSetNumber);
-                    // Merge correct answers with student answers and RECALCULATE isCorrect
-                    let correctCount = 0;
-                    const answersWithCorrect = scoreData.answers.map((ans: any) => {
-                        const studentAns = (ans.studentAnswer || ans.studentAnswerFull || "").toString().trim().toLowerCase();
-                        const correctAnswers = correctAnswerMap[Number(ans.questionNumber)];
-
-                        let isCorrect = false;
-                        let canonicalCorrect = "";
-
-                        if (Array.isArray(correctAnswers)) {
-                            isCorrect = studentAns !== "" && correctAnswers.some(c => c.toString().trim().toLowerCase() === studentAns);
-                            canonicalCorrect = correctAnswers[0]?.toString() || "";
-                        } else {
-                            const correctAns = (correctAnswers || "").toString().trim().toLowerCase();
+                            const correctAns = AutoMarkingService.normalizeAnswer(correctAnswers || "");
                             isCorrect = studentAns !== "" && studentAns === correctAns;
                             canonicalCorrect = correctAnswers?.toString() || "";
                         }
@@ -682,17 +628,137 @@ const saveModuleScore = async (
                             isCorrect: isCorrect
                         };
                     });
+
+                    // CALCULATE BAND SCORE ON BACKEND
+                    const calculatedBand = AutoMarkingService.convertToBandScore(correctCount, "listening");
+
+                    updateObj["examAnswers.listening"] = answersWithCorrect;
+                    updateObj["scores.listening"] = {
+                        raw: correctCount,
+                        band: calculatedBand,
+                        correctAnswers: correctCount,
+                        totalQuestions: scoreData.total || 40,
+                    };
+                } else {
+                    updateObj["examAnswers.listening"] = scoreData.answers;
+                    updateObj["scores.listening"] = {
+                        raw: scoreData.score || 0,
+                        band: scoreData.band,
+                        correctAnswers: scoreData.score || 0,
+                        totalQuestions: scoreData.total || 40,
+                    };
+                }
+            } catch (err) {
+                console.error("Failed to fetch correct answers for listening:", err);
+                updateObj["examAnswers.listening"] = scoreData.answers;
+                updateObj["scores.listening"] = {
+                    raw: scoreData.score || 0,
+                    band: scoreData.band,
+                    correctAnswers: scoreData.score || 0,
+                    totalQuestions: scoreData.total || 40,
+                };
+            }
+        } else {
+            updateObj["scores.listening"] = {
+                raw: scoreData.score || 0,
+                band: scoreData.band,
+                correctAnswers: scoreData.score || 0,
+                totalQuestions: scoreData.total || 40,
+            };
+        }
+    } else if (module === "reading") {
+        updateObj["scores.reading"] = {
+            raw: scoreData.score || 0,
+            band: scoreData.band,
+            correctAnswers: scoreData.score || 0,
+            totalQuestions: scoreData.total || 40,
+        };
+        if (scoreData.answers && Array.isArray(scoreData.answers)) {
+            // Fetch correct answers from question set
+            try {
+                const readingSetNumber = student.assignedSets?.readingSetNumber;
+                if (readingSetNumber) {
+                    const correctAnswerMap = await QuestionSetService.getAnswersForGrading("READING", readingSetNumber);
+
+                    // Fetch testType for reading band calculation
+                    let testType: "academic" | "general-training" = "academic";
+                    try {
+                        const { ReadingTest } = await import("../reading/reading.model");
+                        const test = await ReadingTest.findOne({ testNumber: readingSetNumber }).select("testType").lean();
+                        if (test?.testType) {
+                            testType = test.testType as any;
+                        }
+                    } catch (e) {
+                        console.error("Error fetching ReadingTest for type:", e);
+                    }
+
+                    // Merge correct answers with student answers and RECALCULATE isCorrect
+                    let correctCount = 0;
+                    const answersWithCorrect = scoreData.answers.map((ans: any) => {
+                        const studentAns = AutoMarkingService.normalizeAnswer(ans.studentAnswer || ans.studentAnswerFull || "");
+                        const correctAnswers = correctAnswerMap[Number(ans.questionNumber)];
+
+                        let isCorrect = false;
+                        let canonicalCorrect = "";
+
+                        if (Array.isArray(correctAnswers)) {
+                            isCorrect = studentAns !== "" && correctAnswers.some(c => AutoMarkingService.normalizeAnswer(c) === studentAns);
+                            canonicalCorrect = correctAnswers[0]?.toString() || "";
+                        } else {
+                            const correctAns = AutoMarkingService.normalizeAnswer(correctAnswers || "");
+                            isCorrect = studentAns !== "" && studentAns === correctAns;
+                            canonicalCorrect = correctAnswers?.toString() || "";
+                        }
+
+                        if (isCorrect) correctCount++;
+
+                        return {
+                            questionNumber: ans.questionNumber,
+                            questionText: ans.questionText || "",
+                            questionType: ans.questionType || "fill-in-blank",
+                            studentAnswer: ans.studentAnswer || "",
+                            studentAnswerFull: ans.studentAnswerFull || ans.studentAnswer || "",
+                            correctAnswer: canonicalCorrect || ans.correctAnswer || "",
+                            isCorrect: isCorrect
+                        };
+                    });
+
+                    // CALCULATE BAND SCORE ON BACKEND
+                    const calculatedBand = AutoMarkingService.convertToBandScore(correctCount, "reading", testType);
+
                     updateObj["examAnswers.reading"] = answersWithCorrect;
-                    // Update correct answers count in score
-                    updateObj["scores.reading"].correctAnswers = correctCount;
-                    updateObj["scores.reading"].raw = correctCount;
+                    updateObj["scores.reading"] = {
+                        raw: correctCount,
+                        band: calculatedBand,
+                        correctAnswers: correctCount,
+                        totalQuestions: scoreData.total || 40,
+                    };
                 } else {
                     updateObj["examAnswers.reading"] = scoreData.answers;
+                    updateObj["scores.reading"] = {
+                        raw: scoreData.score || 0,
+                        band: scoreData.band,
+                        correctAnswers: scoreData.score || 0,
+                        totalQuestions: scoreData.total || 40,
+                    };
                 }
             } catch (err) {
                 console.error("Failed to fetch correct answers for reading:", err);
                 updateObj["examAnswers.reading"] = scoreData.answers;
+                updateObj["scores.reading"] = {
+                    raw: scoreData.score || 0,
+                    band: scoreData.band,
+                    correctAnswers: scoreData.score || 0,
+                    totalQuestions: scoreData.total || 40,
+                };
             }
+        } else {
+            updateObj["scores.reading"] = {
+                raw: scoreData.score || 0,
+                band: scoreData.band,
+                correctAnswers: scoreData.score || 0,
+                totalQuestions: scoreData.total || 40,
+            };
         }
     } else if (module === "writing") {
         updateObj["scores.writing"] = {
@@ -714,14 +780,14 @@ const saveModuleScore = async (
 
     // Calculate overall band
     const existingScores = student.scores || {} as any;
-    const listeningBand = module === "listening" ? scoreData.band : (existingScores.listening?.band || 0);
-    const readingBand = module === "reading" ? scoreData.band : (existingScores.reading?.band || 0);
-    const writingBand = module === "writing" ? scoreData.band : (existingScores.writing?.overallBand || 0);
+    // Calculate overall band using the newly calculated bands if available, otherwise fallback to existing
+    const listeningBand = updateObj["scores.listening"]?.band || existingScores.listening?.band || 0;
+    const readingBand = updateObj["scores.reading"]?.band || existingScores.reading?.band || 0;
+    const writingBand = updateObj["scores.writing"]?.overallBand || existingScores.writing?.overallBand || 0;
 
     const bands = [listeningBand, readingBand, writingBand].filter(b => b > 0);
     if (bands.length > 0) {
-        const sum = bands.reduce((a, b) => a + b, 0);
-        updateObj["scores.overall"] = Math.round((sum / bands.length) * 2) / 2;
+        updateObj["scores.overall"] = AutoMarkingService.calculateOverallBand(bands);
     }
 
     console.log("[saveModuleScore] Final updateObj:", JSON.stringify(updateObj, null, 2));
@@ -943,14 +1009,15 @@ const updateScore = async (studentId: string, module: string, score: number) => 
         student.scores.writing.overallBand = score;
     }
 
-    // Recalculate overall
+    // Recalculate overall using Official IELTS rules
     const listening = student.scores.listening?.band || 0;
     const reading = student.scores.reading?.band || 0;
     const writing = student.scores.writing?.overallBand || 0;
 
-    const sum = listening + reading + writing;
-    const count = [listening, reading, writing].filter(s => s > 0).length || 1;
-    student.scores.overall = Math.round((sum / count) * 2) / 2; // Round to nearest 0.5
+    const bands = [listening, reading, writing].filter(s => s > 0);
+    if (bands.length > 0) {
+        student.scores.overall = AutoMarkingService.calculateOverallBand(bands);
+    }
 
     await student.save();
 
@@ -1189,19 +1256,42 @@ const updateAllScores = async (
 
     // Update listening scores
     if (scoresData.listening) {
-        student.scores.listening.band = scoresData.listening.band;
         if (scoresData.listening.correctAnswers !== undefined) {
             student.scores.listening.correctAnswers = scoresData.listening.correctAnswers;
             student.scores.listening.raw = scoresData.listening.correctAnswers;
+            // Automatically calculate band from correct answers
+            student.scores.listening.band = AutoMarkingService.convertToBandScore(scoresData.listening.correctAnswers, "listening");
+        } else if (scoresData.listening.band !== undefined) {
+            student.scores.listening.band = scoresData.listening.band;
         }
     }
 
     // Update reading scores
     if (scoresData.reading) {
-        student.scores.reading.band = scoresData.reading.band;
         if (scoresData.reading.correctAnswers !== undefined) {
             student.scores.reading.correctAnswers = scoresData.reading.correctAnswers;
             student.scores.reading.raw = scoresData.reading.correctAnswers;
+
+            // Fetch testType for reading band calculation
+            let testType: "academic" | "general-training" = "academic";
+            try {
+                const readingSetNumber = student.assignedSets?.readingSetNumber;
+                if (readingSetNumber) {
+                    // Using dynamic import to avoid potential circular dependency if any
+                    const { ReadingTest } = await import("../reading/reading.model");
+                    const test = await ReadingTest.findOne({ testNumber: readingSetNumber }).select("testType").lean();
+                    if (test?.testType) {
+                        testType = test.testType as any;
+                    }
+                }
+            } catch (e) {
+                console.error("Error fetching ReadingTest for type in updateAllScores:", e);
+            }
+
+            // Automatically calculate band from correct answers
+            student.scores.reading.band = AutoMarkingService.convertToBandScore(scoresData.reading.correctAnswers, "reading", testType);
+        } else if (scoresData.reading.band !== undefined) {
+            student.scores.reading.band = scoresData.reading.band;
         }
     }
 
@@ -1217,15 +1307,14 @@ const updateAllScores = async (
         student.adminRemarks = scoresData.adminRemarks;
     }
 
-    // Recalculate overall band score
+    // Recalculate overall band score using Official IELTS rules
     const listening = student.scores.listening?.band || 0;
     const reading = student.scores.reading?.band || 0;
     const writing = student.scores.writing?.overallBand || 0;
 
     const bands = [listening, reading, writing].filter(b => b > 0);
     if (bands.length > 0) {
-        const sum = bands.reduce((a, b) => a + b, 0);
-        student.scores.overall = Math.round((sum / bands.length) * 2) / 2; // Round to nearest 0.5
+        student.scores.overall = AutoMarkingService.calculateOverallBand(bands);
     }
 
     await student.save();

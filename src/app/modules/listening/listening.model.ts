@@ -3,7 +3,10 @@ import { IListeningTest, IListeningSection, IListeningQuestion } from "./listeni
 
 // Question Schema
 const ListeningQuestionSchema = new Schema<IListeningQuestion>({
-    questionNumber: { type: Number, required: true },
+    blockType: { type: String, enum: ["question", "instruction"], default: "question" },
+    content: { type: String }, // For instruction blocks
+
+    questionNumber: { type: Number, required: false },
     questionType: {
         type: String,
         required: false,

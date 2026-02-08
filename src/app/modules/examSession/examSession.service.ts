@@ -104,7 +104,7 @@ const submitAnswers = async (
             answersArray,
             exam[section].sections
         );
-        const bandScore = AutoMarkingService.convertToBandScore(rawScore);
+        const bandScore = AutoMarkingService.convertToBandScore(rawScore, section as "listening" | "reading");
 
         session.scores[section] = {
             raw: rawScore,

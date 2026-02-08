@@ -9,7 +9,10 @@ import {
 // Question sub-schema
 const questionSchema = new Schema<ISetQuestion>(
     {
-        questionNumber: { type: Number, required: true },
+        blockType: { type: String, enum: ["question", "instruction"], default: "question" },
+        content: { type: String },
+
+        questionNumber: { type: Number, required: false },
         questionType: {
             type: String,
             enum: [
@@ -25,11 +28,11 @@ const questionSchema = new Schema<ISetQuestion>(
                 "diagram-labeling",
                 "fill-in-blank",
             ],
-            required: true,
+            required: false, // Make it optional for instructions
         },
-        questionText: { type: String, required: true },
+        questionText: { type: String, required: false },
         options: [{ type: String }],
-        correctAnswer: { type: Schema.Types.Mixed, required: true },
+        correctAnswer: { type: Schema.Types.Mixed, required: false },
         audioTimestamp: { type: String },
         imageUrl: { type: String },
         marks: { type: Number, default: 1 },

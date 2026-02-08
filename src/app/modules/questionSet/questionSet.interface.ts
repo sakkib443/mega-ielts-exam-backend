@@ -39,14 +39,17 @@ export type SetType = "LISTENING" | "READING" | "WRITING";
 
 // Individual question
 export interface ISetQuestion {
-    questionNumber: number;
-    questionType: QuestionType;
-    questionText: string;
+    blockType?: "question" | "instruction"; // default: "question"
+    content?: string; // for instruction blocks (HTML/Rich-text)
+
+    questionNumber?: number;
+    questionType?: QuestionType;
+    questionText?: string;
     options?: string[];
-    correctAnswer: string | string[];
+    correctAnswer?: string | string[];
     audioTimestamp?: string;
     imageUrl?: string;
-    marks: number;
+    marks?: number;
 }
 
 // Section within a set
