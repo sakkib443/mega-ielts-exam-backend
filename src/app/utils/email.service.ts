@@ -22,7 +22,7 @@ const getStudentRegistrationTemplate = (data: {
 }) => {
     return `
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -44,9 +44,9 @@ const getStudentRegistrationTemplate = (data: {
                     <!-- Welcome Message -->
                     <tr>
                         <td style="padding: 40px 30px 20px 30px;">
-                            <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 24px;">স্বাগতম, ${data.studentName}! 🎉</h2>
+                            <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 24px;">Welcome, ${data.studentName}! 🎉</h2>
                             <p style="color: #4b5563; font-size: 16px; line-height: 1.6; margin: 0;">
-                                আপনার IELTS পরীক্ষার রেজিস্ট্রেশন সফলভাবে সম্পন্ন হয়েছে। নিচে আপনার লগইন তথ্য দেওয়া হলো:
+                                Congratulations! Your IELTS exam registration has been successfully completed. Below are your login credentials:
                             </p>
                         </td>
                     </tr>
@@ -57,7 +57,7 @@ const getStudentRegistrationTemplate = (data: {
                             <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%); border-radius: 12px; border: 2px solid #0891b2;">
                                 <tr>
                                     <td style="padding: 25px;">
-                                        <h3 style="color: #0e7490; margin: 0 0 20px 0; font-size: 18px; border-bottom: 2px solid #0891b2; padding-bottom: 10px;">📋 আপনার লগইন তথ্য</h3>
+                                        <h3 style="color: #0e7490; margin: 0 0 20px 0; font-size: 18px; border-bottom: 2px solid #0891b2; padding-bottom: 10px;">📋 Your Login Credentials</h3>
                                         
                                         <table width="100%" cellpadding="8" cellspacing="0">
                                             <tr>
@@ -73,7 +73,7 @@ const getStudentRegistrationTemplate = (data: {
                                                 <td style="color: #0891b2; font-weight: 700; font-family: 'Courier New', monospace; background: #ffffff; padding: 8px 12px; border-radius: 6px;">${data.password}</td>
                                             </tr>
                                             <tr>
-                                                <td style="color: #1f2937; font-weight: 600;">পরীক্ষার তারিখ:</td>
+                                                <td style="color: #1f2937; font-weight: 600;">Exam Date:</td>
                                                 <td style="color: #dc2626; font-weight: 700;">${data.examDate}</td>
                                             </tr>
                                         </table>
@@ -87,7 +87,7 @@ const getStudentRegistrationTemplate = (data: {
                     <tr>
                         <td style="padding: 30px; text-align: center;">
                             <a href="${data.loginUrl}" style="display: inline-block; background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 12px rgba(8, 145, 178, 0.4);">
-                                🚀 এখনই লগইন করুন
+                                🚀 Login Now
                             </a>
                         </td>
                     </tr>
@@ -99,7 +99,7 @@ const getStudentRegistrationTemplate = (data: {
                                 <tr>
                                     <td style="padding: 15px;">
                                         <p style="color: #92400e; margin: 0; font-size: 14px;">
-                                            ⚠️ <strong>গুরুত্বপূর্ণ:</strong> আপনার পাসওয়ার্ড কাউকে শেয়ার করবেন না এবং পরীক্ষার সময় ফুল-স্ক্রিন মোড থেকে বের হবেন না।
+                                            ⚠️ <strong>Important:</strong> Please do not share your password with anyone. During the exam, do not exit full-screen mode as it may result in disqualification.
                                         </p>
                                     </td>
                                 </tr>
@@ -114,7 +114,7 @@ const getStudentRegistrationTemplate = (data: {
                                 © ${new Date().getFullYear()} BdCalling Academy. All rights reserved.
                             </p>
                             <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 12px;">
-                                যেকোনো সমস্যায় যোগাযোগ করুন: support@bdcalling.com
+                                For any queries, contact us at: support@bdcalling.com
                             </p>
                         </td>
                     </tr>
@@ -145,7 +145,7 @@ const getResultPublishedTemplate = (data: {
 
     return `
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -159,7 +159,7 @@ const getResultPublishedTemplate = (data: {
                     <!-- Header -->
                     <tr>
                         <td style="background: linear-gradient(135deg, #059669 0%, #047857 100%); padding: 40px 30px; text-align: center;">
-                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">🎉 রেজাল্ট প্রকাশিত!</h1>
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">🎉 Your Results Are Ready!</h1>
                             <p style="color: #d1fae5; margin: 10px 0 0 0; font-size: 16px;">BdCalling Academy IELTS</p>
                         </td>
                     </tr>
@@ -167,8 +167,8 @@ const getResultPublishedTemplate = (data: {
                     <!-- Congratulations Message -->
                     <tr>
                         <td style="padding: 40px 30px 20px 30px; text-align: center;">
-                            <h2 style="color: #1f2937; margin: 0 0 10px 0; font-size: 22px;">অভিনন্দন, ${data.studentName}! 🏆</h2>
-                            <p style="color: #6b7280; font-size: 14px; margin: 0;">Exam ID: <strong>${data.examId}</strong> | পরীক্ষার তারিখ: <strong>${data.examDate}</strong></p>
+                            <h2 style="color: #1f2937; margin: 0 0 10px 0; font-size: 22px;">Congratulations, ${data.studentName}! 🏆</h2>
+                            <p style="color: #6b7280; font-size: 14px; margin: 0;">Exam ID: <strong>${data.examId}</strong> | Exam Date: <strong>${data.examDate}</strong></p>
                         </td>
                     </tr>
                     
@@ -215,7 +215,7 @@ const getResultPublishedTemplate = (data: {
                     <tr>
                         <td style="padding: 10px 30px 30px 30px; text-align: center;">
                             <a href="${data.resultUrl}" style="display: inline-block; background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 12px rgba(8, 145, 178, 0.4);">
-                                📊 বিস্তারিত রেজাল্ট দেখুন
+                                📊 View Detailed Results
                             </a>
                         </td>
                     </tr>
@@ -227,8 +227,8 @@ const getResultPublishedTemplate = (data: {
                                 <tr>
                                     <td style="padding: 20px; text-align: center;">
                                         <p style="color: #4b5563; margin: 0; font-size: 15px; line-height: 1.6;">
-                                            আপনার IELTS প্রস্তুতিতে আমাদের সাথে থাকার জন্য ধন্যবাদ।<br>
-                                            আপনার সাফল্য কামনা করছি! 🌟
+                                            Thank you for choosing BdCalling Academy for your IELTS preparation.<br>
+                                            We wish you all the best in your future endeavors! 🌟
                                         </p>
                                     </td>
                                 </tr>
@@ -243,7 +243,7 @@ const getResultPublishedTemplate = (data: {
                                 © ${new Date().getFullYear()} BdCalling Academy. All rights reserved.
                             </p>
                             <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 12px;">
-                                যেকোনো সমস্যায় যোগাযোগ করুন: support@bdcalling.com
+                                For any queries, contact us at: support@bdcalling.com
                             </p>
                         </td>
                     </tr>
@@ -277,7 +277,7 @@ export const sendStudentRegistrationEmail = async (data: {
                 examId: data.examId,
                 email: data.email,
                 password: data.password,
-                examDate: new Date(data.examDate).toLocaleDateString("bn-BD", {
+                examDate: new Date(data.examDate).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "long",
                     day: "numeric",
@@ -321,7 +321,7 @@ export const sendResultPublishedEmail = async (data: {
                 readingBand: data.readingBand,
                 writingBand: data.writingBand,
                 overallBand: data.overallBand,
-                examDate: new Date(data.examDate).toLocaleDateString("bn-BD", {
+                examDate: new Date(data.examDate).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "long",
                     day: "numeric",
@@ -343,3 +343,4 @@ export const EmailService = {
     sendStudentRegistrationEmail,
     sendResultPublishedEmail,
 };
+
