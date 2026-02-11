@@ -35,7 +35,7 @@ export type WritingTask2SubType =
     | "direct-question";
 
 // Set type
-export type SetType = "LISTENING" | "READING" | "WRITING";
+export type SetType = "LISTENING" | "READING" | "WRITING" | "SPEAKING";
 
 // Individual question
 export interface ISetQuestion {

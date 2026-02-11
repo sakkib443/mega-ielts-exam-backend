@@ -5,7 +5,12 @@ import { auth, authorize } from "../../middlewares/auth";
 
 const router = Router();
 
-// All upload routes require admin authentication
+// ============ PUBLIC ROUTES (For exam) ============
+// Upload speaking recording (public - students upload during exam)
+router.post("/speaking-recording", upload.single("video"), UploadController.uploadVideo);
+
+// ============ ADMIN ROUTES ============
+// All routes below require admin authentication
 router.use(auth);
 router.use(authorize("admin"));
 

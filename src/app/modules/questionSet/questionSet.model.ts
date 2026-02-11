@@ -139,7 +139,7 @@ const questionSetSchema = new Schema<IQuestionSet>(
         },
         setType: {
             type: String,
-            enum: ["LISTENING", "READING", "WRITING"],
+            enum: ["LISTENING", "READING", "WRITING", "SPEAKING"],
             required: true,
         },
         setNumber: {

@@ -16,7 +16,7 @@ const storage = multer.memoryStorage();
 export const upload = multer({
     storage,
     limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB max for audio files
+        fileSize: 100 * 1024 * 1024, // 100MB max for video recordings
     },
     fileFilter: (req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
         // Allow audio and image files
@@ -29,6 +29,8 @@ export const upload = multer({
             "image/png",
             "image/gif",
             "image/webp",
+            "video/webm",
+            "video/mp4",
         ];
 
         if (allowedMimes.includes(file.mimetype)) {

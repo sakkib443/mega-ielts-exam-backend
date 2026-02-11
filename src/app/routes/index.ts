@@ -10,6 +10,7 @@ import { UploadRoutes } from "../modules/upload/upload.route";
 import { ListeningRoutes } from "../modules/listening/listening.route";
 import { ReadingRoutes } from "../modules/reading/reading.route";
 import { WritingRoutes } from "../modules/writing/writing.route";
+import { SpeakingRoutes } from "../modules/speaking/speaking.route";
 
 const router = Router();
 
@@ -50,6 +51,10 @@ const moduleRoutes = [
     {
         path: "/writing",
         route: WritingRoutes,
+    },
+    {
+        path: "/speaking",
+        route: SpeakingRoutes,
     },
 ];
 

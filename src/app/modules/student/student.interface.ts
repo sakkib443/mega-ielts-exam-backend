@@ -22,6 +22,8 @@ export interface IAssignedSets {
     readingSetNumber?: number;
     writingSetId?: Types.ObjectId;
     writingSetNumber?: number;
+    speakingSetId?: Types.ObjectId;
+    speakingSetNumber?: number;
 }
 
 // Exam result scores
@@ -42,6 +44,9 @@ export interface IExamScores {
         task1Band: number;
         task2Band: number;
         overallBand: number;
+    };
+    speaking?: {
+        band: number;
     };
     overall: number;
 }
@@ -91,7 +96,7 @@ export interface IStudent {
     scores?: IExamScores;
 
     // Track completed modules
-    completedModules?: ("listening" | "reading" | "writing" | "LISTENING" | "READING" | "WRITING")[];
+    completedModules?: ("listening" | "reading" | "writing" | "speaking" | "LISTENING" | "READING" | "WRITING" | "SPEAKING")[];
 
     // Store student's exam answers for each module
     examAnswers?: {
@@ -110,6 +115,18 @@ export interface IStudent {
         writing?: {
             task1?: string;
             task2?: string;
+        };
+        speaking?: {
+            part1?: any;
+            part2?: any;
+            part3?: any;
+            recordings?: {
+                questionLabel: string;
+                questionText: string;
+                videoUrl: string;
+                publicId: string;
+                duration?: number;
+            }[];
         };
     };
 
@@ -151,6 +168,7 @@ export interface ICreateStudentInput {
     listeningSetNumber?: number;
     readingSetNumber?: number;
     writingSetNumber?: number;
+    speakingSetNumber?: number;
 }
 
 // Verify exam ID input

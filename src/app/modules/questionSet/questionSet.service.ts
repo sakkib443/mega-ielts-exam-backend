@@ -10,6 +10,7 @@ import { Types } from "mongoose";
 import { ListeningTest, generateListeningTestId } from "../listening/listening.model";
 import { ReadingTest, generateReadingTestId } from "../reading/reading.model";
 import { WritingTest, generateWritingTestId } from "../writing/writing.model";
+import { SpeakingTest, generateSpeakingTestId } from "../speaking/speaking.model";
 
 
 const createQuestionSet = async (
@@ -96,6 +97,38 @@ const createQuestionSet = async (
             setId: result.testId,
             setNumber: result.testNumber,
             setType: "WRITING",
+        };
+    } else if (data.setType === "SPEAKING") {
+        const { testId, testNumber } = await generateSpeakingTestId();
+
+        // Calculate total questions
+        let totalQuestions = 0;
+        if ((data as any).part1?.topics) {
+            (data as any).part1.topics.forEach((topic: any) => {
+                totalQuestions += topic.questions?.length || 0;
+            });
+        }
+        totalQuestions += 1; // Part 2 cue card
+        if ((data as any).part2?.followUpQuestions) {
+            totalQuestions += (data as any).part2.followUpQuestions.length;
+        }
+        if ((data as any).part3?.questions) {
+            totalQuestions += (data as any).part3.questions.length;
+        }
+
+        result = await SpeakingTest.create({
+            ...(data as any),
+            testId,
+            testNumber,
+            totalQuestions,
+            createdBy: new Types.ObjectId(adminId),
+        });
+
+        return {
+            ...result.toObject(),
+            setId: result.testId,
+            setNumber: result.testNumber,
+            setType: "SPEAKING",
         };
     }
 
@@ -193,6 +226,14 @@ const getAllQuestionSets = async (
                 ...oldSets
             ];
             total = newTotal + oldSets.length;
+        } else if (filters.setType === "SPEAKING") {
+            const [newSets, newTotal] = await Promise.all([
+                SpeakingTest.find(query).sort({ testNumber: 1 }).lean(),
+                SpeakingTest.countDocuments(query),
+            ]);
+
+            sets = newSets.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "SPEAKING" }));
+            total = newTotal;
         }
 
         // Apply manual pagination since we combined two sources
@@ -211,10 +252,11 @@ const getAllQuestionSets = async (
 
     const query = buildQuery(filters.isActive, filters.difficulty, filters.searchTerm);
 
-    const [listeningTests, readingTests, writingTests, legacySets] = await Promise.all([
+    const [listeningTests, readingTests, writingTests, speakingTests, legacySets] = await Promise.all([
         ListeningTest.find(query).select("-sections.questions.correctAnswer").sort({ testNumber: 1 }).lean(),
         ReadingTest.find(query).select("-sections.questions.correctAnswer").sort({ testNumber: 1 }).lean(),
         WritingTest.find(query).select("-tasks.sampleAnswer").sort({ testNumber: 1 }).lean(),
+        SpeakingTest.find(query).sort({ testNumber: 1 }).lean(),
         QuestionSet.find(query).lean()
     ]);
 
@@ -222,11 +264,12 @@ const getAllQuestionSets = async (
         ...listeningTests.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "LISTENING" as const })),
         ...readingTests.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "READING" as const })),
         ...writingTests.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "WRITING" as const })),
+        ...speakingTests.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "SPEAKING" as const })),
         ...legacySets
     ];
 
     allSets.sort((a, b) => {
-        const typeOrder = { LISTENING: 1, READING: 2, WRITING: 3 };
+        const typeOrder: Record<string, number> = { LISTENING: 1, READING: 2, WRITING: 3, SPEAKING: 4 };
         if (typeOrder[a.setType] !== typeOrder[b.setType]) {
             return typeOrder[a.setType] - typeOrder[b.setType];
         }
@@ -278,6 +321,14 @@ const getQuestionSetById = async (id: string, includeAnswers: boolean = false) =
             : await WritingTest.findById(id).select("-tasks.sampleAnswer").lean();
         if (set) {
             setType = "WRITING";
+        }
+    }
+
+    // Try Speaking if not found
+    if (!set) {
+        set = await SpeakingTest.findById(id).lean();
+        if (set) {
+            setType = "SPEAKING";
         }
     }
 
@@ -334,6 +385,15 @@ const getQuestionSetById = async (id: string, includeAnswers: boolean = false) =
             setNumber: set.testNumber,
             setType: "WRITING",
             writingTasks,
+        };
+    }
+
+    if (setType === "SPEAKING") {
+        return {
+            ...set,
+            setId: set.testId,
+            setNumber: set.testNumber,
+            setType: "SPEAKING",
         };
     }
 
@@ -447,6 +507,27 @@ const getQuestionSetForExam = async (setType: SetType, setNumber: number) => {
                 isActive: test.isActive
             };
             await WritingTest.findByIdAndUpdate(test._id, { $inc: { usageCount: 1 } });
+        }
+    } else if (setType === "SPEAKING") {
+        const test = await SpeakingTest.findOne({ testNumber: setNumber, isActive: true }).lean();
+
+        if (test) {
+            data = {
+                _id: test._id,
+                setId: test.testId,
+                setNumber: test.testNumber,
+                setType: "SPEAKING",
+                title: test.title,
+                description: test.description,
+                part1: test.part1,
+                part2: test.part2,
+                part3: test.part3,
+                totalQuestions: test.totalQuestions,
+                duration: test.duration,
+                difficulty: test.difficulty,
+                isActive: test.isActive
+            };
+            await SpeakingTest.findByIdAndUpdate(test._id, { $inc: { usageCount: 1 } });
         }
     }
 
@@ -624,6 +705,14 @@ const updateQuestionSet = async (
         }
     }
 
+    // Try Speaking if not found
+    if (!set) {
+        set = await SpeakingTest.findById(id);
+        if (set) {
+            setType = "SPEAKING";
+        }
+    }
+
     // If found in new collections, update there
     if (set && setType) {
         // Prepare update data based on set type
@@ -740,6 +829,36 @@ const updateQuestionSet = async (
                 setType: "WRITING",
             };
         }
+
+        // Speaking specific
+        if (setType === "SPEAKING") {
+            if ((updateData as any).part1) updatePayload.part1 = (updateData as any).part1;
+            if ((updateData as any).part2) updatePayload.part2 = (updateData as any).part2;
+            if ((updateData as any).part3) updatePayload.part3 = (updateData as any).part3;
+
+            // Recalculate totalQuestions
+            let totalQuestions = 0;
+            const p1 = updatePayload.part1 || set.part1;
+            const p2 = updatePayload.part2 || set.part2;
+            const p3 = updatePayload.part3 || set.part3;
+            if (p1?.topics) p1.topics.forEach((t: any) => { totalQuestions += t.questions?.length || 0; });
+            totalQuestions += 1;
+            if (p2?.followUpQuestions) totalQuestions += p2.followUpQuestions.length;
+            if (p3?.questions) totalQuestions += p3.questions.length;
+            updatePayload.totalQuestions = totalQuestions;
+
+            const updatedSet = await SpeakingTest.findByIdAndUpdate(
+                id,
+                { $set: updatePayload },
+                { new: true, runValidators: true }
+            );
+            return {
+                ...updatedSet?.toObject(),
+                setId: updatedSet?.testId,
+                setNumber: updatedSet?.testNumber,
+                setType: "SPEAKING",
+            };
+        }
     }
 
     // Fallback to old collection
@@ -789,6 +908,11 @@ const deleteQuestionSet = async (id: string) => {
         return { message: "Writing test deleted permanently" };
     }
 
+    result = await SpeakingTest.findByIdAndDelete(id);
+    if (result) {
+        return { message: "Speaking test deleted permanently" };
+    }
+
     // Fallback to old collection
     result = await QuestionSet.findByIdAndDelete(id);
     if (!result) {
@@ -827,6 +951,16 @@ const toggleActive = async (id: string) => {
         await set.save();
         return {
             message: `Writing test ${set.isActive ? "activated" : "deactivated"} successfully`,
+            isActive: set.isActive,
+        };
+    }
+
+    set = await SpeakingTest.findById(id);
+    if (set) {
+        set.isActive = !set.isActive;
+        await set.save();
+        return {
+            message: `Speaking test ${set.isActive ? "activated" : "deactivated"} successfully`,
             isActive: set.isActive,
         };
     }
@@ -889,6 +1023,19 @@ const getSetSummary = async (setType: SetType) => {
             difficulty: t.difficulty,
             usageCount: t.usageCount
         }));
+    } else if (setType === "SPEAKING") {
+        const tests = await SpeakingTest.find({ isActive: true })
+            .select("_id testId testNumber title difficulty usageCount")
+            .sort({ testNumber: 1 })
+            .lean();
+        sets = tests.map(t => ({
+            _id: t._id,
+            setId: t.testId,
+            setNumber: t.testNumber,
+            title: t.title,
+            difficulty: t.difficulty,
+            usageCount: t.usageCount
+        }));
     }
 
     // Fallback to old collection
@@ -904,10 +1051,11 @@ const getSetSummary = async (setType: SetType) => {
 
 // Get statistics - NOW USES NEW COLLECTIONS
 const getStatistics = async () => {
-    const [listeningCount, readingCount, writingCount, listeningUsage, readingUsage, writingUsage] = await Promise.all([
+    const [listeningCount, readingCount, writingCount, speakingCount, listeningUsage, readingUsage, writingUsage, speakingUsage] = await Promise.all([
         ListeningTest.countDocuments({ isActive: true }),
         ReadingTest.countDocuments({ isActive: true }),
         WritingTest.countDocuments({ isActive: true }),
+        SpeakingTest.countDocuments({ isActive: true }),
         ListeningTest.aggregate([
             { $group: { _id: null, total: { $sum: "$usageCount" } } },
         ]),
@@ -917,17 +1065,22 @@ const getStatistics = async () => {
         WritingTest.aggregate([
             { $group: { _id: null, total: { $sum: "$usageCount" } } },
         ]),
+        SpeakingTest.aggregate([
+            { $group: { _id: null, total: { $sum: "$usageCount" } } },
+        ]),
     ]);
 
     const totalUsage =
         (listeningUsage[0]?.total || 0) +
         (readingUsage[0]?.total || 0) +
-        (writingUsage[0]?.total || 0);
+        (writingUsage[0]?.total || 0) +
+        (speakingUsage[0]?.total || 0);
 
     return {
         listening: listeningCount,
         reading: readingCount,
         writing: writingCount,
+        speaking: speakingCount,
         totalUsage,
     };
 };

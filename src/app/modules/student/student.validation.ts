@@ -39,6 +39,7 @@ const createStudentSchema = z.object({
         listeningSetNumber: z.number().int().min(1).max(10000).optional(),
         readingSetNumber: z.number().int().min(1).max(10000).optional(),
         writingSetNumber: z.number().int().min(1).max(10000).optional(),
+        speakingSetNumber: z.number().int().min(1).max(10000).optional(),
     }),
 });
 
@@ -72,6 +73,7 @@ const updateStudentSchema = z.object({
         listeningSetNumber: z.number().int().min(1).max(10000).optional(),
         readingSetNumber: z.number().int().min(1).max(10000).optional(),
         writingSetNumber: z.number().int().min(1).max(10000).optional(),
+        speakingSetNumber: z.number().int().min(1).max(10000).optional(),
         isActive: z.boolean().optional(),
         canRetake: z.boolean().optional(),
     }),

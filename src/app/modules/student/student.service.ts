@@ -62,6 +62,7 @@ const createStudent = async (
             listeningSetNumber: data.listeningSetNumber,
             readingSetNumber: data.readingSetNumber,
             writingSetNumber: data.writingSetNumber,
+            speakingSetNumber: data.speakingSetNumber,
         },
         createdBy: new Types.ObjectId(adminId),
     });
@@ -237,11 +238,15 @@ const updateStudent = async (id: string, updateData: Partial<ICreateStudentInput
     if (updateData.writingSetNumber !== undefined) {
         updateObj["assignedSets.writingSetNumber"] = updateData.writingSetNumber;
     }
+    if ((updateData as any).speakingSetNumber !== undefined) {
+        updateObj["assignedSets.speakingSetNumber"] = (updateData as any).speakingSetNumber;
+    }
 
     // Remove individual set fields from root
     delete updateObj.listeningSetNumber;
     delete updateObj.readingSetNumber;
     delete updateObj.writingSetNumber;
+    delete (updateObj as any).speakingSetNumber;
 
     const updatedStudent = await Student.findByIdAndUpdate(
         id,
@@ -563,7 +568,7 @@ const completeExam = async (
 // Save individual module score
 const saveModuleScore = async (
     examId: string,
-    module: "listening" | "reading" | "writing",
+    module: "listening" | "reading" | "writing" | "speaking",
     scoreData: {
         score?: number;
         total?: number;
@@ -786,6 +791,13 @@ const saveModuleScore = async (
         } else {
             console.log("[saveModuleScore] No writing answers in scoreData!");
         }
+    } else if (module === "speaking") {
+        updateObj["scores.speaking"] = {
+            band: scoreData.band,
+        };
+        if (scoreData.answers) {
+            updateObj["examAnswers.speaking"] = scoreData.answers;
+        }
     }
 
     // Calculate overall band
@@ -794,8 +806,9 @@ const saveModuleScore = async (
     const listeningBand = updateObj["scores.listening"]?.band || existingScores.listening?.band || 0;
     const readingBand = updateObj["scores.reading"]?.band || existingScores.reading?.band || 0;
     const writingBand = updateObj["scores.writing"]?.overallBand || existingScores.writing?.overallBand || 0;
+    const speakingBand = updateObj["scores.speaking"]?.band || existingScores.speaking?.band || 0;
 
-    const bands = [listeningBand, readingBand, writingBand].filter(b => b > 0);
+    const bands = [listeningBand, readingBand, writingBand, speakingBand].filter(b => b > 0);
     if (bands.length > 0) {
         updateObj["scores.overall"] = AutoMarkingService.calculateOverallBand(bands);
     }
@@ -818,7 +831,7 @@ const saveModuleScore = async (
 
     // After atomic update, check if all modules are now completed
     const currentCompletedCount = updatedStudent.completedModules?.length || 0;
-    if (currentCompletedCount >= 3 && updatedStudent.examStatus !== "completed") {
+    if (currentCompletedCount >= 4 && updatedStudent.examStatus !== "completed") {
         updatedStudent.examStatus = "completed";
         updatedStudent.examCompletedAt = new Date();
         await updatedStudent.save();
@@ -835,7 +848,7 @@ const saveModuleScore = async (
         module,
         band: scoreData.band,
         completedModules: updatedStudent.completedModules,
-        allCompleted: (updatedStudent.completedModules?.length || 0) >= 3,
+        allCompleted: (updatedStudent.completedModules?.length || 0) >= 4,
         scores: updatedStudent.scores,
     };
 };
@@ -1379,7 +1392,7 @@ const publishResults = async (studentId: string, publish: boolean = true) => {
 // Reset individual module (admin only)
 const resetModule = async (
     studentId: string,
-    module: "listening" | "reading" | "writing"
+    module: "listening" | "reading" | "writing" | "speaking"
 ) => {
     const student = await Student.findById(studentId);
     if (!student) {
@@ -1408,7 +1421,7 @@ const resetModule = async (
     // Update exam status
     if (newCompletedModules.length === 0) {
         updateObj.examStatus = "not-started";
-    } else if (newCompletedModules.length < 3) {
+    } else if (newCompletedModules.length < 4) {
         updateObj.examStatus = "in-progress";
     }
 

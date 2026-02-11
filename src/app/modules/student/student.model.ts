@@ -12,6 +12,8 @@ const assignedSetsSchema = new Schema<IAssignedSets>(
         readingSetNumber: { type: Number },
         writingSetId: { type: Schema.Types.ObjectId, ref: "QuestionSet" },
         writingSetNumber: { type: Number },
+        speakingSetId: { type: Schema.Types.ObjectId, ref: "QuestionSet" },
+        speakingSetNumber: { type: Number },
     },
     { _id: false }
 );
@@ -35,6 +37,9 @@ const examScoresSchema = new Schema<IExamScores>(
             task1Band: { type: Number, default: 0 },
             task2Band: { type: Number, default: 0 },
             overallBand: { type: Number, default: 0 },
+        },
+        speaking: {
+            band: { type: Number, default: 0 },
         },
         overall: { type: Number, default: 0 },
     },
@@ -164,7 +169,7 @@ const studentSchema = new Schema<IStudent>(
         // Track completed modules
         completedModules: {
             type: [String],
-            enum: ["listening", "reading", "writing", "LISTENING", "READING", "WRITING"],
+            enum: ["listening", "reading", "writing", "speaking", "LISTENING", "READING", "WRITING", "SPEAKING"],
             default: [],
         },
 
@@ -191,6 +196,18 @@ const studentSchema = new Schema<IStudent>(
             writing: {
                 task1: { type: String, default: "" },
                 task2: { type: String, default: "" },
+            },
+            speaking: {
+                part1: { type: Schema.Types.Mixed },
+                part2: { type: Schema.Types.Mixed },
+                part3: { type: Schema.Types.Mixed },
+                recordings: [{
+                    questionLabel: { type: String, default: "" },
+                    questionText: { type: String, default: "" },
+                    videoUrl: { type: String, default: "" },
+                    publicId: { type: String, default: "" },
+                    duration: { type: Number },
+                }],
             },
         },
 
