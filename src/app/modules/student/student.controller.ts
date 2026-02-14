@@ -404,12 +404,13 @@ const getAnswerSheet = async (req: Request, res: Response) => {
 const updateAllScores = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { listening, reading, writing, adminRemarks } = req.body;
+        const { listening, reading, writing, speaking, adminRemarks } = req.body;
 
         const result = await StudentService.updateAllScores(id, {
             listening,
             reading,
             writing,
+            speaking,
             adminRemarks,
         });
 
@@ -453,7 +454,7 @@ const resetModule = async (req: Request, res: Response) => {
         const { id } = req.params;
         const { module } = req.body;
 
-        if (!module || !["listening", "reading", "writing"].includes(module)) {
+        if (!module || !["listening", "reading", "writing", "speaking"].includes(module)) {
             return res.status(400).json({
                 success: false,
                 message: "Valid module name is required (listening, reading, or writing)",

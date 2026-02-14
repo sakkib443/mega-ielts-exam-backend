@@ -133,6 +133,7 @@ const getResultPublishedTemplate = (data: {
     listeningBand: number;
     readingBand: number;
     writingBand: number;
+    speakingBand: number;
     overallBand: number;
     examDate: string;
     resultUrl: string;
@@ -192,19 +193,26 @@ const getResultPublishedTemplate = (data: {
                             <table width="100%" cellpadding="0" cellspacing="10">
                                 <tr>
                                     <!-- Listening -->
-                                    <td width="33%" style="background-color: #f0f9ff; border-radius: 12px; text-align: center; padding: 20px 10px;">
+                                    <td width="50%" style="background-color: #f0f9ff; border-radius: 12px; text-align: center; padding: 20px 10px;">
                                         <p style="color: #0369a1; margin: 0 0 5px 0; font-size: 12px; font-weight: 600;">🎧 LISTENING</p>
                                         <p style="color: #0c4a6e; margin: 0; font-size: 32px; font-weight: 700;">${data.listeningBand}</p>
                                     </td>
                                     <!-- Reading -->
-                                    <td width="33%" style="background-color: #ecfdf5; border-radius: 12px; text-align: center; padding: 20px 10px;">
+                                    <td width="50%" style="background-color: #ecfdf5; border-radius: 12px; text-align: center; padding: 20px 10px;">
                                         <p style="color: #047857; margin: 0 0 5px 0; font-size: 12px; font-weight: 600;">📖 READING</p>
                                         <p style="color: #064e3b; margin: 0; font-size: 32px; font-weight: 700;">${data.readingBand}</p>
                                     </td>
+                                </tr>
+                                <tr>
                                     <!-- Writing -->
-                                    <td width="33%" style="background-color: #fef3c7; border-radius: 12px; text-align: center; padding: 20px 10px;">
+                                    <td width="50%" style="background-color: #fef3c7; border-radius: 12px; text-align: center; padding: 20px 10px;">
                                         <p style="color: #b45309; margin: 0 0 5px 0; font-size: 12px; font-weight: 600;">✍️ WRITING</p>
                                         <p style="color: #78350f; margin: 0; font-size: 32px; font-weight: 700;">${data.writingBand}</p>
+                                    </td>
+                                    <!-- Speaking -->
+                                    <td width="50%" style="background-color: #fff7ed; border-radius: 12px; text-align: center; padding: 20px 10px;">
+                                        <p style="color: #c2410c; margin: 0 0 5px 0; font-size: 12px; font-weight: 600;">🎙️ SPEAKING</p>
+                                        <p style="color: #7c2d12; margin: 0; font-size: 32px; font-weight: 700;">${data.speakingBand}</p>
                                     </td>
                                 </tr>
                             </table>
@@ -303,6 +311,7 @@ export const sendResultPublishedEmail = async (data: {
     listeningBand: number;
     readingBand: number;
     writingBand: number;
+    speakingBand: number;
     overallBand: number;
     examDate: Date;
 }) => {
@@ -320,6 +329,7 @@ export const sendResultPublishedEmail = async (data: {
                 listeningBand: data.listeningBand,
                 readingBand: data.readingBand,
                 writingBand: data.writingBand,
+                speakingBand: data.speakingBand,
                 overallBand: data.overallBand,
                 examDate: new Date(data.examDate).toLocaleDateString("en-US", {
                     year: "numeric",

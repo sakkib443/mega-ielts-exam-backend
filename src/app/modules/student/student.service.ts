@@ -1289,6 +1289,7 @@ const updateAllScores = async (
         listening?: { band: number; correctAnswers?: number };
         reading?: { band: number; correctAnswers?: number };
         writing?: { task1Band: number; task2Band: number; overallBand: number };
+        speaking?: { band: number };
         adminRemarks?: string;
     }
 ) => {
@@ -1354,17 +1355,25 @@ const updateAllScores = async (
         student.scores.writing.overallBand = scoresData.writing.overallBand;
     }
 
+    // Update speaking scores
+    if (scoresData.speaking) {
+        student.scores.speaking = {
+            band: scoresData.speaking.band || 0
+        };
+    }
+
     // Update admin remarks
     if (scoresData.adminRemarks !== undefined) {
         student.adminRemarks = scoresData.adminRemarks;
     }
 
     // Recalculate overall band score using Official IELTS rules
-    const listening = student.scores.listening?.band || 0;
-    const reading = student.scores.reading?.band || 0;
-    const writing = student.scores.writing?.overallBand || 0;
+    const listening = Math.max(0, student.scores.listening?.band || 0);
+    const reading = Math.max(0, student.scores.reading?.band || 0);
+    const writing = Math.max(0, student.scores.writing?.overallBand || 0);
+    const speaking = Math.max(0, student.scores.speaking?.band || 0);
 
-    const bands = [listening, reading, writing].filter(b => b > 0);
+    const bands = [listening, reading, writing, speaking].filter(b => b > 0);
     if (bands.length > 0) {
         student.scores.overall = AutoMarkingService.calculateOverallBand(bands);
     }
@@ -1403,6 +1412,7 @@ const publishResults = async (studentId: string, publish: boolean = true) => {
             listeningBand: scores.listening?.band || 0,
             readingBand: scores.reading?.band || 0,
             writingBand: scores.writing?.overallBand || 0,
+            speakingBand: scores.speaking?.band || 0,
             overallBand: scores.overall || 0,
             examDate: student.examDate,
         }).catch(err => console.error("Failed to send result email:", err));
