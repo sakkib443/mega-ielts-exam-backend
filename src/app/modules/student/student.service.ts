@@ -831,7 +831,7 @@ const saveModuleScore = async (
 
     // After atomic update, check if all modules are now completed
     const currentCompletedCount = updatedStudent.completedModules?.length || 0;
-    if (currentCompletedCount >= 4 && updatedStudent.examStatus !== "completed") {
+    if (currentCompletedCount >= 3 && updatedStudent.examStatus !== "completed") {
         updatedStudent.examStatus = "completed";
         updatedStudent.examCompletedAt = new Date();
         await updatedStudent.save();
@@ -848,7 +848,7 @@ const saveModuleScore = async (
         module,
         band: scoreData.band,
         completedModules: updatedStudent.completedModules,
-        allCompleted: (updatedStudent.completedModules?.length || 0) >= 4,
+        allCompleted: (updatedStudent.completedModules?.length || 0) >= 3,
         scores: updatedStudent.scores,
     };
 };
