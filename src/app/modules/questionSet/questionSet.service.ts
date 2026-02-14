@@ -227,13 +227,17 @@ const getAllQuestionSets = async (
             ];
             total = newTotal + oldSets.length;
         } else if (filters.setType === "SPEAKING") {
-            const [newSets, newTotal] = await Promise.all([
+            const [newSets, newTotal, oldSets] = await Promise.all([
                 SpeakingTest.find(query).sort({ testNumber: 1 }).lean(),
                 SpeakingTest.countDocuments(query),
+                QuestionSet.find({ ...query, setType: "SPEAKING" }).lean()
             ]);
 
-            sets = newSets.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "SPEAKING" }));
-            total = newTotal;
+            sets = [
+                ...newSets.map(s => ({ ...s, setId: s.testId, setNumber: s.testNumber, setType: "SPEAKING" })),
+                ...oldSets
+            ];
+            total = newTotal + oldSets.length;
         }
 
         // Apply manual pagination since we combined two sources
@@ -427,10 +431,11 @@ const getQuestionSetByNumber = async (
 };
 
 // Get question set for exam (without answers) - NOW USES NEW COLLECTIONS
-const getQuestionSetForExam = async (setType: SetType, setNumber: number) => {
+const getQuestionSetForExam = async (setType: string, setNumber: number) => {
     let data: any = null;
+    const type = setType.toUpperCase();
 
-    if (setType === "LISTENING") {
+    if (type === "LISTENING") {
         const test = await ListeningTest.findOne({ testNumber: setNumber, isActive: true })
             .select("-sections.questions.correctAnswer -sections.questions.acceptableAnswers -sections.questions.explanation")
             .lean();
@@ -456,7 +461,7 @@ const getQuestionSetForExam = async (setType: SetType, setNumber: number) => {
             // Increment usage
             await ListeningTest.findByIdAndUpdate(test._id, { $inc: { usageCount: 1 } });
         }
-    } else if (setType === "READING") {
+    } else if (type === "READING") {
         const test = await ReadingTest.findOne({ testNumber: setNumber, isActive: true })
             .select("-sections.questions.correctAnswer -sections.questions.acceptableAnswers -sections.questions.explanation")
             .lean();
@@ -478,7 +483,7 @@ const getQuestionSetForExam = async (setType: SetType, setNumber: number) => {
             };
             await ReadingTest.findByIdAndUpdate(test._id, { $inc: { usageCount: 1 } });
         }
-    } else if (setType === "WRITING") {
+    } else if (type === "WRITING") {
         const test = await WritingTest.findOne({ testNumber: setNumber, isActive: true })
             .select("-tasks.sampleAnswer -tasks.keyPoints -tasks.bandDescriptors")
             .lean();
@@ -508,7 +513,7 @@ const getQuestionSetForExam = async (setType: SetType, setNumber: number) => {
             };
             await WritingTest.findByIdAndUpdate(test._id, { $inc: { usageCount: 1 } });
         }
-    } else if (setType === "SPEAKING") {
+    } else if (type === "SPEAKING") {
         const test = await SpeakingTest.findOne({ testNumber: setNumber, isActive: true }).lean();
 
         if (test) {
@@ -533,12 +538,16 @@ const getQuestionSetForExam = async (setType: SetType, setNumber: number) => {
 
     if (!data) {
         // Fallback to old collection
-        const set = await QuestionSet.findOne({ setType, setNumber, isActive: true })
+        const set = await QuestionSet.findOne({
+            setType: { $regex: new RegExp(`^${type}$`, 'i') },
+            setNumber,
+            isActive: true
+        })
             .select("-sections.questions.correctAnswer -writingTasks.sampleAnswer")
             .lean();
 
         if (!set) {
-            throw new Error(`${setType} Set #${setNumber} not found or inactive`);
+            throw new Error(`${type} Set #${setNumber} not found or inactive in both collections`);
         }
         return set;
     }
