@@ -1083,6 +1083,35 @@ const getAnswerSheet = async (studentId: string, module: string) => {
             ...studentAnswers,
             questions
         };
+    } else if (moduleName === 'speaking') {
+        // Speaking module - structured data with recordings, part1, part2, part3
+        const speakingData = student.examAnswers?.speaking || {};
+
+        // Fetch speaking question details from question set
+        let speakingQuestions: any = null;
+        try {
+            const speakingSetNumber = (student.assignedSets as any)?.speakingSetNumber;
+            if (speakingSetNumber) {
+                const { SpeakingTest } = await import("../speaking/speaking.model");
+                const test = await SpeakingTest.findOne({ testNumber: speakingSetNumber }).lean();
+                if (test) {
+                    speakingQuestions = {
+                        part1: test.part1 || null,
+                        part2: test.part2 || null,
+                        part3: test.part3 || null,
+                    };
+                }
+            }
+        } catch (err) {
+            console.error("Failed to fetch speaking question details:", err);
+        }
+
+        answers = {
+            recordings: (speakingData as any)?.recordings || [],
+            part1: speakingQuestions?.part1 || (speakingData as any)?.part1 || null,
+            part2: speakingQuestions?.part2 || (speakingData as any)?.part2 || null,
+            part3: speakingQuestions?.part3 || (speakingData as any)?.part3 || null,
+        };
     } else {
         // Listening and Reading - directly return saved answers
         // The saved answers already contain: questionNumber, questionText, studentAnswer, correctAnswer, isCorrect
